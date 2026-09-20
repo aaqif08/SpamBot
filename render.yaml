@@ -14,8 +14,9 @@ services:
       - key: BOTSHIELD_DATABASE_URL
         value: sqlite:////app/data/botshield.db
 
-  - type: static
+  - type: web
     name: botshield-frontend
+    runtime: static
     branch: main
     rootDir: frontend
     buildCommand: npm install && npm run build
