@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+backend/.venv/
+.pytest_cache/
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# Data / artefacts (temporary database files and uploads)
+backend/data/*.db*
+backend/data/uploads/*
+!backend/data/uploads/.gitkeep
+backend/data/exports/*
+!backend/data/exports/.gitkeep
+backend/data/cache/
+backend/data/storage/
+backend/data/datasets/demo/
+
+# Env
+.env
+frontend/.env

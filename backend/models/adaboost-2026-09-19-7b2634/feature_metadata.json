@@ -1,0 +1,174 @@
+{
+  "feature_version": "paper-31-v1",
+  "feature_names": [
+    "friends_count",
+    "followers_count",
+    "listed_count",
+    "favorites_count",
+    "statuses_count",
+    "ffratio",
+    "unique_word_count",
+    "unique_word_use",
+    "punctuation_count",
+    "avg_sentence_length",
+    "punctuation_density",
+    "profile_completeness",
+    "description_binary",
+    "default_profile",
+    "default_profile_image",
+    "geo_enabled",
+    "profile_background_tile",
+    "avg_polarity",
+    "avg_subjectivity"
+  ],
+  "n_features": 19,
+  "groups": {
+    "user_profile": [
+      "friends_count",
+      "followers_count",
+      "listed_count",
+      "favorites_count"
+    ],
+    "content": [
+      "statuses_count"
+    ],
+    "engagement": [
+      "ffratio"
+    ],
+    "linguistic": [
+      "unique_word_count",
+      "unique_word_use",
+      "punctuation_count",
+      "avg_sentence_length",
+      "punctuation_density"
+    ],
+    "profile_attributes": [
+      "profile_completeness",
+      "description_binary",
+      "default_profile",
+      "default_profile_image",
+      "geo_enabled",
+      "profile_background_tile"
+    ],
+    "sentiment": [
+      "avg_polarity",
+      "avg_subjectivity"
+    ]
+  },
+  "feature_selection": {
+    "enabled": false
+  },
+  "dropped_constant_features": [
+    "verified",
+    "hashtag_count",
+    "mentions_count",
+    "retweet_count",
+    "reply_count",
+    "url_count",
+    "avg_hashtag",
+    "avg_retweets",
+    "avg_replies",
+    "avg_mentions",
+    "avg_url",
+    "avg_user_engagement"
+  ],
+  "scaling": "min-max (fit on training split)",
+  "imputation": "median (fit on training split)",
+  "raw_feature_ranges": {
+    "friends_count": {
+      "min": 0.0,
+      "max": 23813.0,
+      "median": 273.0
+    },
+    "followers_count": {
+      "min": 0.0,
+      "max": 408372.0,
+      "median": 17.0
+    },
+    "listed_count": {
+      "min": 0.0,
+      "max": 760.0,
+      "median": 0.0
+    },
+    "favorites_count": {
+      "min": 0.0,
+      "max": 44349.0,
+      "median": 0.0
+    },
+    "statuses_count": {
+      "min": 0.0,
+      "max": 112283.0,
+      "median": 39.0
+    },
+    "ffratio": {
+      "min": 0.0,
+      "max": 2094.2153846153847,
+      "median": 0.0564971751412429
+    },
+    "unique_word_count": {
+      "min": 0.0,
+      "max": 32.0,
+      "median": 8.0
+    },
+    "unique_word_use": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 0.9411764705882352
+    },
+    "punctuation_count": {
+      "min": 0.0,
+      "max": 55.0,
+      "median": 2.0
+    },
+    "avg_sentence_length": {
+      "min": 0.0,
+      "max": 35.0,
+      "median": 5.0
+    },
+    "punctuation_density": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 0.037037037037037
+    },
+    "profile_completeness": {
+      "min": 0.1666666666666666,
+      "max": 1.0,
+      "median": 0.6666666666666666
+    },
+    "description_binary": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 1.0
+    },
+    "default_profile": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 1.0
+    },
+    "default_profile_image": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 0.0
+    },
+    "geo_enabled": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 0.0
+    },
+    "profile_background_tile": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 0.0
+    },
+    "avg_polarity": {
+      "min": -1.0,
+      "max": 1.0,
+      "median": 0.0
+    },
+    "avg_subjectivity": {
+      "min": 0.0,
+      "max": 1.0,
+      "median": 0.0
+    }
+  }
+}

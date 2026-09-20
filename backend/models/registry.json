@@ -1,0 +1,1610 @@
+{
+  "active_model_id": "lightgbm-2026-09-19-e4e048",
+  "models": [
+    {
+      "id": "random_forest-2026-09-19-7e4907",
+      "name": "Random Forest",
+      "algorithm": "random_forest",
+      "version": "1.0.20260919043417",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9855572998430141,
+          "precision": 0.9930495221546481,
+          "recall": 0.9870466321243523,
+          "f1": 0.9900389779125163,
+          "roc_auc": 0.9971998962538084
+        },
+        "cv": {
+          "accuracy": 0.9855523683496757,
+          "precision": 0.9920593406674822,
+          "recall": 0.9880525816927452,
+          "f1": 0.9900479391500555,
+          "roc_auc": 0.9972354372712889
+        },
+        "cv_std": {
+          "accuracy": 0.0035455944515523667,
+          "precision": 0.0033652104755708266,
+          "recall": 0.002898925622286567,
+          "f1": 0.002437749140369902,
+          "roc_auc": 0.0010634550400221733
+        }
+      },
+      "path": "random_forest-2026-09-19-7e4907",
+      "trained_at": "2026-09-19T04:34:17.852081+00:00",
+      "training_seconds": 22.060914199988474,
+      "params": {
+        "config": {
+          "algorithm": "random_forest",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "n_estimators": 500,
+          "min_samples_leaf": 2,
+          "max_features": 0.5,
+          "max_depth": 20
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "svm-2026-09-19-d6f34f",
+      "name": "SVM",
+      "algorithm": "svm",
+      "version": "1.0.20260919043619",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9343799058084772,
+          "precision": 0.9465875370919882,
+          "recall": 0.9641623488773747,
+          "f1": 0.9552941176470588,
+          "roc_auc": 0.9744226882188448
+        },
+        "cv": {
+          "accuracy": 0.9386514009550659,
+          "precision": 0.9504341013338052,
+          "recall": 0.9660280414976874,
+          "f1": 0.958165258303505,
+          "roc_auc": 0.9731187306697343
+        },
+        "cv_std": {
+          "accuracy": 0.003651513725853776,
+          "precision": 0.0024439699044829285,
+          "recall": 0.0033625956937822377,
+          "f1": 0.0025134392142177374,
+          "roc_auc": 0.004910218306735551
+        }
+      },
+      "path": "svm-2026-09-19-d6f34f",
+      "trained_at": "2026-09-19T04:36:19.695892+00:00",
+      "training_seconds": 86.23640530000557,
+      "params": {
+        "config": {
+          "algorithm": "svm",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "gamma": 0.1,
+          "C": 30
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "decision_tree-2026-09-19-ac6579",
+      "name": "Decision Tree",
+      "algorithm": "decision_tree",
+      "version": "1.0.20260919043620",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9792778649921507,
+          "precision": 0.9874350086655113,
+          "recall": 0.9840241796200345,
+          "f1": 0.985726643598616,
+          "roc_auc": 0.9921775470981873
+        },
+        "cv": {
+          "accuracy": 0.9823071717611732,
+          "precision": 0.9891805649899847,
+          "recall": 0.9864694335244547,
+          "f1": 0.9878187416988095,
+          "roc_auc": 0.9918785119485694
+        },
+        "cv_std": {
+          "accuracy": 0.0027191742181946386,
+          "precision": 0.002475032985701577,
+          "recall": 0.0030986190229014615,
+          "f1": 0.0018774101904482261,
+          "roc_auc": 0.00305364629265353
+        }
+      },
+      "path": "decision_tree-2026-09-19-ac6579",
+      "trained_at": "2026-09-19T04:36:20.745314+00:00",
+      "training_seconds": 0.731156199995894,
+      "params": {
+        "config": {
+          "algorithm": "decision_tree",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "min_samples_leaf": 10,
+          "max_depth": 20,
+          "criterion": "gini"
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "xgboost-2026-09-19-dbd85c",
+      "name": "XGBoost",
+      "algorithm": "xgboost",
+      "version": "1.0.20260919043630",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9858712715855573,
+          "precision": 0.9934810951760105,
+          "recall": 0.9870466321243523,
+          "f1": 0.9902534113060428,
+          "roc_auc": 0.9971912010509767
+        },
+        "cv": {
+          "accuracy": 0.9864948315210096,
+          "precision": 0.99306475483195,
+          "recall": 0.9883406622434234,
+          "f1": 0.9906934177013529,
+          "roc_auc": 0.9972477126476729
+        },
+        "cv_std": {
+          "accuracy": 0.0031309037352587822,
+          "precision": 0.002964169758421542,
+          "recall": 0.002781532624652987,
+          "f1": 0.0021561983173501156,
+          "roc_auc": 0.001220205368057936
+        }
+      },
+      "path": "xgboost-2026-09-19-dbd85c",
+      "trained_at": "2026-09-19T04:36:30.776325+00:00",
+      "training_seconds": 7.3825379999907454,
+      "params": {
+        "config": {
+          "algorithm": "xgboost",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "subsample": 0.8,
+          "n_estimators": 200,
+          "max_depth": 8,
+          "learning_rate": 0.03
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "lightgbm-2026-09-19-a85480",
+      "name": "LightGBM",
+      "algorithm": "lightgbm",
+      "version": "1.0.20260919043642",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9864992150706436,
+          "precision": 0.9943453675511091,
+          "recall": 0.9870466321243523,
+          "f1": 0.9906825568797399,
+          "roc_auc": 0.996870720718035
+        },
+        "cv": {
+          "accuracy": 0.9864949959041208,
+          "precision": 0.9930609022111228,
+          "recall": 0.9883407658322586,
+          "f1": 0.9906921203351178,
+          "roc_auc": 0.9972660347489244
+        },
+        "cv_std": {
+          "accuracy": 0.0031822298277366236,
+          "precision": 0.002345489861883884,
+          "recall": 0.0031969131036745963,
+          "f1": 0.002198447127275372,
+          "roc_auc": 0.0009222875246712968
+        }
+      },
+      "path": "lightgbm-2026-09-19-a85480",
+      "trained_at": "2026-09-19T04:36:42.920028+00:00",
+      "training_seconds": 5.669735999996192,
+      "params": {
+        "config": {
+          "algorithm": "lightgbm",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "num_leaves": 31,
+          "n_estimators": 300,
+          "min_child_samples": 40,
+          "learning_rate": 0.03
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "logistic_regression-2026-09-19-861b4c",
+      "name": "Logistic Regression",
+      "algorithm": "logistic_regression",
+      "version": "1.0.20260919043644",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9346938775510204,
+          "precision": 0.935177539223782,
+          "recall": 0.977979274611399,
+          "f1": 0.9560996200928662,
+          "roc_auc": 0.965777669129148
+        },
+        "cv": {
+          "accuracy": 0.9336263736263735,
+          "precision": 0.9367683359345701,
+          "recall": 0.9745208757400128,
+          "f1": 0.9552686987087139,
+          "roc_auc": 0.9680854183593673
+        },
+        "cv_std": {
+          "accuracy": 0.0015350714665872285,
+          "precision": 0.0011646674238962786,
+          "recall": 0.0026822603851243323,
+          "f1": 0.001090626917844598,
+          "roc_auc": 0.0019657076286976444
+        }
+      },
+      "path": "logistic_regression-2026-09-19-861b4c",
+      "trained_at": "2026-09-19T04:36:44.665621+00:00",
+      "training_seconds": 0.7402520000032382,
+      "params": {
+        "config": {
+          "algorithm": "logistic_regression",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "solver": "lbfgs",
+          "penalty": "l2",
+          "C": 10
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "extra_trees-2026-09-19-165dc2",
+      "name": "Extra Trees",
+      "algorithm": "extra_trees",
+      "version": "1.0.20260919043706",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9616954474097331,
+          "precision": 0.9648305084745763,
+          "recall": 0.9831606217616581,
+          "f1": 0.9739093242087254,
+          "roc_auc": 0.992838134079034
+        },
+        "cv": {
+          "accuracy": 0.9634634973602811,
+          "precision": 0.9740238599789348,
+          "recall": 0.975816979245977,
+          "f1": 0.974907529917427,
+          "roc_auc": 0.9927284371662782
+        },
+        "cv_std": {
+          "accuracy": 0.0038913610726954034,
+          "precision": 0.0048649431467539545,
+          "recall": 0.0037428100414147623,
+          "f1": 0.0026518502035066754,
+          "roc_auc": 0.0006987367535194338
+        }
+      },
+      "path": "extra_trees-2026-09-19-165dc2",
+      "trained_at": "2026-09-19T04:37:06.372945+00:00",
+      "training_seconds": 8.762040500005241,
+      "params": {
+        "config": {
+          "algorithm": "extra_trees",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "n_estimators": 200,
+          "min_samples_leaf": 2,
+          "max_depth": 40
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "naive_bayes-2026-09-19-4c5b76",
+      "name": "Naive Bayes",
+      "algorithm": "naive_bayes",
+      "version": "1.0.20260919043707",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9058084772370487,
+          "precision": 0.9019138755980861,
+          "recall": 0.9766839378238342,
+          "f1": 0.9378109452736318,
+          "roc_auc": 0.9326735413424598
+        },
+        "cv": {
+          "accuracy": 0.9088152635198259,
+          "precision": 0.9068170269246444,
+          "recall": 0.9748104065343839,
+          "f1": 0.9395756329016741,
+          "roc_auc": 0.9416064464107567
+        },
+        "cv_std": {
+          "accuracy": 0.0021657763880954363,
+          "precision": 0.0027142745158684387,
+          "recall": 0.0039867492065714,
+          "f1": 0.0014796273270921067,
+          "roc_auc": 0.003516271212452793
+        }
+      },
+      "path": "naive_bayes-2026-09-19-4c5b76",
+      "trained_at": "2026-09-19T04:37:07.476846+00:00",
+      "training_seconds": 0.3229532000113977,
+      "params": {
+        "config": {
+          "algorithm": "naive_bayes",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "var_smoothing": 1e-09
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "adaboost-2026-09-19-037067",
+      "name": "AdaBoost",
+      "algorithm": "adaboost",
+      "version": "1.0.20260919043739",
+      "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+      "dataset_name": "CRESCI-17 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9830455259026688,
+          "precision": 0.9875,
+          "recall": 0.9892055267702936,
+          "f1": 0.9883520276100086,
+          "roc_auc": 0.9963932298653884
+        },
+        "cv": {
+          "accuracy": 0.9834586754556838,
+          "precision": 0.9882151328484182,
+          "recall": 0.9890602938815254,
+          "f1": 0.9886334151567505,
+          "roc_auc": 0.996816114935332
+        },
+        "cv_std": {
+          "accuracy": 0.003940866360748164,
+          "precision": 0.0035355022886472457,
+          "recall": 0.003197896694447946,
+          "f1": 0.0027039051363005866,
+          "roc_auc": 0.0011548420244661484
+        }
+      },
+      "path": "adaboost-2026-09-19-037067",
+      "trained_at": "2026-09-19T04:37:39.712764+00:00",
+      "training_seconds": 22.2701487000013,
+      "params": {
+        "config": {
+          "algorithm": "adaboost",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "fc88b8e7222f493199a2052ce5680002",
+          "dataset_name": "CRESCI-17 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "n_estimators": 200,
+          "learning_rate": 0.3
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "random_forest-2026-09-19-468412",
+      "name": "Random Forest",
+      "algorithm": "random_forest",
+      "version": "1.0.20260919043833",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9766214177978884,
+          "precision": 0.9902794653705954,
+          "recall": 0.9725536992840096,
+          "f1": 0.9813365442504516,
+          "roc_auc": 0.9972954732188269
+        },
+        "cv": {
+          "accuracy": 0.9838993710691823,
+          "precision": 0.9899996921996346,
+          "recall": 0.9844772005417693,
+          "f1": 0.9872242179725699,
+          "roc_auc": 0.9984242649146269
+        },
+        "cv_std": {
+          "accuracy": 0.003018867924528301,
+          "precision": 0.001771503992666611,
+          "recall": 0.004618470495192876,
+          "f1": 0.002424877329572042,
+          "roc_auc": 0.0005315208121891776
+        }
+      },
+      "path": "random_forest-2026-09-19-468412",
+      "trained_at": "2026-09-19T04:38:33.112118+00:00",
+      "training_seconds": 10.199184199998854,
+      "params": {
+        "config": {
+          "algorithm": "random_forest",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "n_estimators": 300,
+          "min_samples_leaf": 1,
+          "max_features": "log2",
+          "max_depth": null
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "svm-2026-09-19-86e15e",
+      "name": "SVM",
+      "algorithm": "svm",
+      "version": "1.0.20260919043857",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.8996983408748115,
+          "precision": 0.9028571428571428,
+          "recall": 0.9427207637231504,
+          "f1": 0.9223584354932867,
+          "roc_auc": 0.9704849563754451
+        },
+        "cv": {
+          "accuracy": 0.9054088050314466,
+          "precision": 0.9015275964141771,
+          "recall": 0.9546323651715207,
+          "f1": 0.9273110320116364,
+          "roc_auc": 0.9594952500589651
+        },
+        "cv_std": {
+          "accuracy": 0.008089527140031963,
+          "precision": 0.004461006189149846,
+          "recall": 0.009207549066658044,
+          "f1": 0.006391515394514066,
+          "roc_auc": 0.01702462220881494
+        }
+      },
+      "path": "svm-2026-09-19-86e15e",
+      "trained_at": "2026-09-19T04:38:57.246564+00:00",
+      "training_seconds": 9.807968299995991,
+      "params": {
+        "config": {
+          "algorithm": "svm",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "gamma": "scale",
+          "C": 10
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "decision_tree-2026-09-19-d3a8c6",
+      "name": "Decision Tree",
+      "algorithm": "decision_tree",
+      "version": "1.0.20260919043857",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.969079939668175,
+          "precision": 0.9795427196149218,
+          "recall": 0.9713603818615751,
+          "f1": 0.975434391851408,
+          "roc_auc": 0.9729168296881725
+        },
+        "cv": {
+          "accuracy": 0.9781132075471698,
+          "precision": 0.9836784531817052,
+          "recall": 0.9816954844637354,
+          "f1": 0.9826812870688377,
+          "roc_auc": 0.9810171281245943
+        },
+        "cv_std": {
+          "accuracy": 0.0050062260986496595,
+          "precision": 0.005893199967647848,
+          "recall": 0.0023174501229735935,
+          "f1": 0.0039245354188429974,
+          "roc_auc": 0.005602784055592925
+        }
+      },
+      "path": "decision_tree-2026-09-19-d3a8c6",
+      "trained_at": "2026-09-19T04:38:57.794805+00:00",
+      "training_seconds": 0.30503580000367947,
+      "params": {
+        "config": {
+          "algorithm": "decision_tree",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "min_samples_leaf": 2,
+          "max_depth": 20,
+          "criterion": "entropy"
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "xgboost-2026-09-19-593ac7",
+      "name": "XGBoost",
+      "algorithm": "xgboost",
+      "version": "1.0.20260919043903",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9819004524886877,
+          "precision": 0.9903614457831326,
+          "recall": 0.9809069212410502,
+          "f1": 0.9856115107913669,
+          "roc_auc": 0.9968797683790447
+        },
+        "cv": {
+          "accuracy": 0.9846540880503145,
+          "precision": 0.9892317331561099,
+          "recall": 0.9864684403538927,
+          "f1": 0.987845562052355,
+          "roc_auc": 0.998382092290905
+        },
+        "cv_std": {
+          "accuracy": 0.0036801858712774316,
+          "precision": 0.0034545739525386264,
+          "recall": 0.0031914307829360453,
+          "f1": 0.0029149441608531416,
+          "roc_auc": 0.0005681232113061929
+        }
+      },
+      "path": "xgboost-2026-09-19-593ac7",
+      "trained_at": "2026-09-19T04:39:03.131246+00:00",
+      "training_seconds": 3.8133604000031482,
+      "params": {
+        "config": {
+          "algorithm": "xgboost",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "subsample": 0.8,
+          "n_estimators": 500,
+          "max_depth": 3,
+          "learning_rate": 0.03
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "lightgbm-2026-09-19-430c97",
+      "name": "LightGBM",
+      "algorithm": "lightgbm",
+      "version": "1.0.20260919043908",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9811463046757164,
+          "precision": 0.9903498190591074,
+          "recall": 0.9797136038186157,
+          "f1": 0.9850029994001199,
+          "roc_auc": 0.9975571227356312
+        },
+        "cv": {
+          "accuracy": 0.9838993710691823,
+          "precision": 0.989607849551826,
+          "recall": 0.984876398976658,
+          "f1": 0.9872342331746505,
+          "roc_auc": 0.9982772730471601
+        },
+        "cv_std": {
+          "accuracy": 0.00256554440935486,
+          "precision": 0.0023134236189695932,
+          "recall": 0.0027114824305251597,
+          "f1": 0.0020413584292917927,
+          "roc_auc": 0.0006394063117236075
+        }
+      },
+      "path": "lightgbm-2026-09-19-430c97",
+      "trained_at": "2026-09-19T04:39:08.843709+00:00",
+      "training_seconds": 3.0304933000006713,
+      "params": {
+        "config": {
+          "algorithm": "lightgbm",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "num_leaves": 15,
+          "n_estimators": 300,
+          "min_child_samples": 10,
+          "learning_rate": 0.05
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "logistic_regression-2026-09-19-6d4afa",
+      "name": "Logistic Regression",
+      "algorithm": "logistic_regression",
+      "version": "1.0.20260919043909",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.8823529411764706,
+          "precision": 0.8875,
+          "recall": 0.931980906921241,
+          "f1": 0.9091967403958091,
+          "roc_auc": 0.9329125748268712
+        },
+        "cv": {
+          "accuracy": 0.8961006289308177,
+          "precision": 0.8923572290919518,
+          "recall": 0.9502530632935455,
+          "f1": 0.920382020956038,
+          "roc_auc": 0.9317008270293584
+        },
+        "cv_std": {
+          "accuracy": 0.00797924605139809,
+          "precision": 0.0035408637320765426,
+          "recall": 0.010168385855855548,
+          "f1": 0.006423869149724681,
+          "roc_auc": 0.006865631687815492
+        }
+      },
+      "path": "logistic_regression-2026-09-19-6d4afa",
+      "trained_at": "2026-09-19T04:39:09.849501+00:00",
+      "training_seconds": 0.3034997999930056,
+      "params": {
+        "config": {
+          "algorithm": "logistic_regression",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "solver": "lbfgs",
+          "penalty": "l2",
+          "C": 10
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "extra_trees-2026-09-19-39b35a",
+      "name": "Extra Trees",
+      "algorithm": "extra_trees",
+      "version": "1.0.20260919043922",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9562594268476622,
+          "precision": 0.9802955665024631,
+          "recall": 0.9498806682577565,
+          "f1": 0.9648484848484848,
+          "roc_auc": 0.9911332602996987
+        },
+        "cv": {
+          "accuracy": 0.9647798742138365,
+          "precision": 0.9806122624944245,
+          "recall": 0.9633870086255376,
+          "f1": 0.9719042999581529,
+          "roc_auc": 0.9935184970894533
+        },
+        "cv_std": {
+          "accuracy": 0.009678180659960423,
+          "precision": 0.00991849127456139,
+          "recall": 0.007520432142292962,
+          "f1": 0.007669571611921272,
+          "roc_auc": 0.001089965036591628
+        }
+      },
+      "path": "extra_trees-2026-09-19-39b35a",
+      "trained_at": "2026-09-19T04:39:22.674744+00:00",
+      "training_seconds": 7.018953400009195,
+      "params": {
+        "config": {
+          "algorithm": "extra_trees",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "n_estimators": 200,
+          "min_samples_leaf": 2,
+          "max_depth": 40
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "naive_bayes-2026-09-19-e9a2cc",
+      "name": "Naive Bayes",
+      "algorithm": "naive_bayes",
+      "version": "1.0.20260919043923",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.8815987933634992,
+          "precision": 0.8873720136518771,
+          "recall": 0.9307875894988067,
+          "f1": 0.9085614443797321,
+          "roc_auc": 0.885593137446692
+        },
+        "cv": {
+          "accuracy": 0.8935849056603773,
+          "precision": 0.8899557257433534,
+          "recall": 0.9490586362304262,
+          "f1": 0.9185324503274839,
+          "roc_auc": 0.9003973044555298
+        },
+        "cv_std": {
+          "accuracy": 0.006962693083319771,
+          "precision": 0.005717782343883587,
+          "recall": 0.00880779982276241,
+          "f1": 0.005474761959573703,
+          "roc_auc": 0.005265412627240893
+        }
+      },
+      "path": "naive_bayes-2026-09-19-e9a2cc",
+      "trained_at": "2026-09-19T04:39:23.531695+00:00",
+      "training_seconds": 0.15697789999831002,
+      "params": {
+        "config": {
+          "algorithm": "naive_bayes",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "var_smoothing": 0.1
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "adaboost-2026-09-19-7b2634",
+      "name": "AdaBoost",
+      "algorithm": "adaboost",
+      "version": "1.0.20260919043942",
+      "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+      "dataset_name": "CRESCI-15 (imported from local files)",
+      "feature_version": "paper-31-v1",
+      "n_features": 19,
+      "feature_names": [
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.978129713423831,
+          "precision": 0.98676293622142,
+          "recall": 0.9785202863961814,
+          "f1": 0.9826243259436789,
+          "roc_auc": 0.9954101295042842
+        },
+        "cv": {
+          "accuracy": 0.9806289308176102,
+          "precision": 0.9837536042651198,
+          "recall": 0.9856708355445019,
+          "f1": 0.9846949021843837,
+          "roc_auc": 0.9978494959855431
+        },
+        "cv_std": {
+          "accuracy": 0.005252984406999018,
+          "precision": 0.006215853396910758,
+          "recall": 0.005259377827085728,
+          "f1": 0.004136989141423191,
+          "roc_auc": 0.001196315717692206
+        }
+      },
+      "path": "adaboost-2026-09-19-7b2634",
+      "trained_at": "2026-09-19T04:39:42.935205+00:00",
+      "training_seconds": 11.733889999988605,
+      "params": {
+        "config": {
+          "algorithm": "adaboost",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 4,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "ca9dc823c655472f98070f4050ace1c7",
+          "dataset_name": "CRESCI-15 (imported from local files)",
+          "is_demo": false,
+          "activate": false,
+          "notes": ""
+        },
+        "best_params": {
+          "n_estimators": 200,
+          "learning_rate": 0.3
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    },
+    {
+      "id": "lightgbm-2026-09-19-e4e048",
+      "name": "LightGBM",
+      "algorithm": "lightgbm",
+      "version": "1.0.20260919044006",
+      "dataset_id": "867c7c7414da4c5096aad982605749a9",
+      "dataset_name": "CRESCI-15 + CRESCI-17 combined (user level)",
+      "feature_version": "paper-31-v1",
+      "n_features": 20,
+      "feature_names": [
+        "verified",
+        "friends_count",
+        "followers_count",
+        "listed_count",
+        "favorites_count",
+        "statuses_count",
+        "ffratio",
+        "unique_word_count",
+        "unique_word_use",
+        "punctuation_count",
+        "avg_sentence_length",
+        "punctuation_density",
+        "profile_completeness",
+        "description_binary",
+        "default_profile",
+        "default_profile_image",
+        "geo_enabled",
+        "profile_background_tile",
+        "avg_polarity",
+        "avg_subjectivity"
+      ],
+      "metrics": {
+        "holdout": {
+          "accuracy": 0.9798474945533769,
+          "precision": 0.9869678540399652,
+          "recall": 0.9810017271157168,
+          "f1": 0.9839757470766566,
+          "roc_auc": 0.9954952975580926
+        },
+        "cv": {
+          "accuracy": 0.9821152973218339,
+          "precision": 0.9885704930212068,
+          "recall": 0.9830141243376789,
+          "f1": 0.9857776233382536,
+          "roc_auc": 0.9959625491516221
+        },
+        "cv_std": {
+          "accuracy": 0.0028070131336795827,
+          "precision": 0.0022871099938327386,
+          "recall": 0.004284704838460434,
+          "f1": 0.0022528278539159915,
+          "roc_auc": 0.0016569870419321604
+        }
+      },
+      "path": "lightgbm-2026-09-19-e4e048",
+      "trained_at": "2026-09-19T04:40:06.359431+00:00",
+      "training_seconds": 11.976717099998496,
+      "params": {
+        "config": {
+          "algorithm": "lightgbm",
+          "test_size": 0.25,
+          "cv_folds": 5,
+          "seed": 42,
+          "hyperparameter_search": true,
+          "search_iterations": 8,
+          "feature_selection": false,
+          "feature_selection_top_k": 20,
+          "shap_sample_size": 300,
+          "lime_sample_size": 2000,
+          "background_size": 100,
+          "dataset_id": "867c7c7414da4c5096aad982605749a9",
+          "dataset_name": "CRESCI-15 + CRESCI-17 combined (user level)",
+          "is_demo": false,
+          "activate": true,
+          "notes": ""
+        },
+        "best_params": {
+          "num_leaves": 31,
+          "n_estimators": 300,
+          "min_child_samples": 40,
+          "learning_rate": 0.03
+        }
+      },
+      "is_demo": false,
+      "notes": ""
+    }
+  ]
+}
