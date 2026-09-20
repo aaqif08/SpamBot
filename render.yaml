@@ -1,7 +1,7 @@
 services:
   - type: web
     name: botshield-backend
-    env: docker
+    runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
     plan: free
@@ -14,10 +14,8 @@ services:
       - key: BOTSHIELD_DATABASE_URL
         value: sqlite:////app/data/botshield.db
 
-  - type: web
+  - type: static
     name: botshield-frontend
-    env: static
-    plan: free
     branch: main
     rootDir: frontend
     buildCommand: npm install && npm run build
@@ -29,4 +27,5 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         sync: false
+
 
