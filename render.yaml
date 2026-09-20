@@ -17,11 +17,15 @@
 #     search_iterations on large datasets.
 #   - Free Postgres expires after 90 days unless upgraded; free web services sleep when idle.
 
-databases:
-  - name: botshield-db
-    plan: free
-    databaseName: botshield
-    user: botshield
+# Database: Render allows ONE free Postgres per account. Either delete your old free database so the
+# Blueprint can create "botshield-db" (uncomment the block below), or paste the Internal Database URL of
+# an existing database into BOTSHIELD_DATABASE_URL when the Blueprint asks for it (default below).
+#
+# databases:
+#   - name: botshield-db
+#     plan: free
+#     databaseName: botshield
+#     user: botshield
 
 services:
   - type: web
@@ -36,9 +40,7 @@ services:
       - key: BOTSHIELD_ENVIRONMENT
         value: production
       - key: BOTSHIELD_DATABASE_URL
-        fromDatabase:
-          name: botshield-db
-          property: connectionString
+        sync: false   # paste the Internal Database URL (postgres://...) of your Render Postgres
       - key: BOTSHIELD_SECRET_KEY
         generateValue: true
       - key: BOTSHIELD_CORS_ORIGINS
