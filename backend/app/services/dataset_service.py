@@ -189,6 +189,7 @@ class DatasetService:
         ds.current_version_id = version.id
         ds.status = DatasetStatus.INVALID if errors else DatasetStatus.VALIDATED
         self.db.commit()
+        self.db.refresh(ds)  # relationship 'versions' must include the new row (expire_on_commit=False)
         audit.record(self.db, "dataset.uploaded", actor=user, target_type="dataset", target_id=ds.id, details={"version": version_no, "rows": version.n_rows, "valid": not errors, "filename": version.original_filename}, request=request)
         return ds
 

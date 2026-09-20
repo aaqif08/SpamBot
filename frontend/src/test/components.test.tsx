@@ -4,21 +4,23 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PredictionResult } from "@/components/PredictionResult";
 import { ConfusionMatrixView, ProportionBar } from "@/components/charts/basic";
-import { DemoBanner, EmptyState, ErrorState, RiskBadge } from "@/components/ui";
+import { EmptyState, ErrorState, RiskBadge, StatusBadge } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
-import type { PredictResponse } from "@/types/api";
+import type { AnalysisResponse } from "@/types/api";
 
-const sampleResult: PredictResponse = {
+const analysis: AnalysisResponse = {
   prediction_id: "p1",
-  account_identifier: "demo_promo_bot",
+  account_identifier: "acct_1",
+  account_ref: "acct_1",
   prediction: "BOT",
   bot_probability: 0.94,
   human_probability: 0.06,
   confidence: 0.94,
   risk_score: 94,
   risk_band: "critical",
-  risk_score_note: "Risk Score is an application-level representation of the model probability.",
-  model: { id: "m1", name: "LightGBM", algorithm: "lightgbm", version: "1", feature_version: "paper-31-v1", n_features: 31 },
+  risk_score_note: "Risk score = round(100 × estimated bot probability); a model output, not a verified fact.",
+  model: { id: "m1", name: "LightGBM", version: 1 },
+  input_summary: {},
   features: { hashtag_count: 25, ffratio: 0.12 },
   feature_groups: { content: { hashtag_count: 25 }, engagement: { ffratio: 0.12 } },
   auxiliary: {},
@@ -55,25 +57,30 @@ const sampleResult: PredictResponse = {
     ],
   },
   explanation_errors: {},
+  explanation_status: { shap: "available", lime: "available" },
   interpretation: { summary: "Model prediction: BOT. Estimated bot probability 94.0%.", recommendation: "Recommend manual review.", bot_indicators: [], human_indicators: [], disclaimer: "" },
-  is_demo: true,
+  source: "manual",
+  status: "COMPLETED",
+  batch_id: null,
+  label_true: null,
+  inference_ms: 12,
   created_at: "2026-01-01T00:00:00Z",
+  created_by: "u1",
 };
 
 describe("PredictionResult", () => {
   it("renders prediction, probability, risk, SHAP and LIME sections from real payload values", () => {
-    render(<PredictionResult result={sampleResult} />);
-    expect(screen.getByText(/BOT \/ spambot-like/)).toBeInTheDocument();
+    render(<PredictionResult result={analysis} />);
+    expect(screen.getByText("Classified as BOT")).toBeInTheDocument();
     expect(screen.getAllByText("94").length).toBeGreaterThan(0);
     expect(screen.getByText(/Why was this account classified as BOT/)).toBeInTheDocument();
     expect(screen.getByText(/Local explanation — LIME/)).toBeInTheDocument();
-    expect(screen.getAllByText(/DEMO DATA — NOT REAL SOCIAL MEDIA DATA/).length).toBeGreaterThan(0);
     expect(screen.getByText("+0.3100")).toBeInTheDocument();
     expect(screen.getByText("Model prediction: BOT. Estimated bot probability 94.0%.")).toBeInTheDocument();
   });
 
   it("shows explanation-unavailable notices when SHAP/LIME are missing", () => {
-    render(<PredictionResult result={{ ...sampleResult, shap_explanation: null, lime_explanation: null, explanation_errors: { shap: "boom", lime: "bang" } }} />);
+    render(<PredictionResult result={{ ...analysis, shap_explanation: null, lime_explanation: null, explanation_errors: { shap: "boom", lime: "bang" } }} />);
     expect(screen.getByText(/SHAP explanation unavailable: boom/)).toBeInTheDocument();
     expect(screen.getByText(/LIME explanation unavailable: bang/)).toBeInTheDocument();
   });
@@ -88,16 +95,16 @@ describe("UI states", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Backend unavailable");
   });
 
-  it("EmptyState and DemoBanner render their copy", () => {
+  it("EmptyState, StatusBadge and RiskBadge render their copy", () => {
     render(
       <>
-        <EmptyState title="No trained model available" description="Run the training pipeline to populate evaluation results." />
-        <DemoBanner />
+        <EmptyState title="No production model configured" description="Train and activate a model first." />
+        <StatusBadge status="PRODUCTION" />
         <RiskBadge band="high" score={72} />
       </>,
     );
-    expect(screen.getByText("No trained model available")).toBeInTheDocument();
-    expect(screen.getByText(/DEMO DATA — NOT REAL SOCIAL MEDIA DATA/)).toBeInTheDocument();
+    expect(screen.getByText("No production model configured")).toBeInTheDocument();
+    expect(screen.getByText("production")).toBeInTheDocument();
     expect(screen.getByText("high")).toBeInTheDocument();
     expect(screen.getByText("72")).toBeInTheDocument();
   });
@@ -131,6 +138,6 @@ describe("useApi", () => {
 
   it("transitions loading → error with a readable message", async () => {
     render(<Probe fetcher={async () => { throw new TypeError("Failed to fetch"); }} />);
-    await waitFor(() => expect(screen.getByText(/error: Backend unavailable/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/error: The API is not reachable/)).toBeInTheDocument());
   });
 });

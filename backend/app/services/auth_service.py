@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.logging import security_log
+from app.core.timeutil import ensure_utc
 from app.core.security import (
     SlidingWindowLimiter,
     client_ip,
@@ -105,7 +106,7 @@ def authenticate(db: Session, email: str, password: str, request: Request | None
         verify_password(password, "$2b$12$C6UzMDM.H6dfI/f/IKcEeO5t3G9rXv8ns3Ff7ObRbbc0DeH/xFj0C")
         audit.record(db, "auth.login_failed", actor_email=email, outcome="failure", details={"reason": "unknown_user"}, request=request)
         raise AuthError()
-    if user.locked_until and user.locked_until > _now():
+    if user.locked_until and ensure_utc(user.locked_until) > _now():
         audit.record(db, "auth.login_failed", actor=user, outcome="failure", details={"reason": "locked"}, request=request)
         raise AuthError("Account temporarily locked after repeated failed logins", status.HTTP_423_LOCKED)
     if not verify_password(password, user.password_hash):
@@ -153,7 +154,7 @@ def issue_tokens(db: Session, user: User, request: Request | None = None) -> tup
 def rotate_refresh(db: Session, refresh_token: str, request: Request | None = None) -> tuple[User, str, str, datetime]:
     """Validate a refresh token, revoke it and issue a new pair (rotation)."""
     row = db.query(RefreshSession).filter(RefreshSession.token_hash == hash_token(refresh_token)).first()
-    if row is None or row.revoked_at is not None or row.expires_at <= _now():
+    if row is None or row.revoked_at is not None or ensure_utc(row.expires_at) <= _now():
         raise AuthError("Session expired")
     user = db.get(User, row.user_id)
     if user is None or user.status != UserStatus.ACTIVE:
@@ -218,7 +219,7 @@ def create_password_reset(db: Session, email: str, request: Request | None = Non
 
 def consume_password_reset(db: Session, token: str, new_password: str, request: Request | None = None) -> User:
     row = db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == hash_token(token)).first()
-    if row is None or row.used_at is not None or row.expires_at <= _now():
+    if row is None or row.used_at is not None or ensure_utc(row.expires_at) <= _now():
         raise AuthError("Reset token is invalid or expired", status.HTTP_400_BAD_REQUEST)
     problems = validate_password_strength(new_password)
     if problems:

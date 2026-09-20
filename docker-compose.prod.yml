@@ -1,0 +1,87 @@
+# Production topology: PostgreSQL + Redis + API (gunicorn) + Celery worker + nginx frontend.
+# Usage:
+#   cp .env.production.example .env      # fill every CHANGE_ME
+#   docker compose -f docker-compose.prod.yml up -d --build
+# Put a TLS-terminating reverse proxy (Caddy/Traefik/cloud load balancer) in front of the
+# "frontend" service — see docs/deployment.md for a Caddyfile example.
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-botshield}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-botshield}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "256mb", "--maxmemory-policy", "noeviction"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      BOTSHIELD_ENVIRONMENT: production
+      BOTSHIELD_JOB_BACKEND: celery
+      BOTSHIELD_REDIS_URL: redis://redis:6379/0
+      BOTSHIELD_TRUSTED_PROXIES: "*"
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    volumes:
+      - api-data:/app/data      # only used when BOTSHIELD_STORAGE_BACKEND=local (shared with the worker)
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8000"
+    networks:
+      default:
+        aliases: [backend]      # nginx.conf proxies to http://backend:8000
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["worker"]
+    env_file: .env
+    environment:
+      BOTSHIELD_ENVIRONMENT: production
+      BOTSHIELD_JOB_BACKEND: celery
+      BOTSHIELD_REDIS_URL: redis://redis:6379/0
+      CELERY_CONCURRENCY: ${CELERY_CONCURRENCY:-2}
+    volumes:
+      - api-data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ""   # same-origin: nginx proxies /api/ to the api service
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+
+volumes:
+  pgdata:
+  api-data:

@@ -71,7 +71,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
 // ---- Badge ------------------------------------------------------------------ //
 
-export type BadgeTone = "neutral" | "bot" | "human" | "accent" | "good" | "warning" | "serious" | "critical" | "demo";
+export type BadgeTone = "neutral" | "bot" | "human" | "accent" | "good" | "warning" | "serious" | "critical";
 
 const toneClass: Record<BadgeTone, string> = {
   neutral: "bg-surface-2 text-ink-2 border-border",
@@ -82,7 +82,6 @@ const toneClass: Record<BadgeTone, string> = {
   warning: "bg-surface-2 text-ink border-border",
   serious: "bg-surface-2 text-ink border-border",
   critical: "bg-surface-2 text-ink border-border",
-  demo: "bg-status-warning/15 text-ink border-status-warning/40",
 };
 
 export function Badge({ tone = "neutral", className, children, dot }: { tone?: BadgeTone; className?: string; children: ReactNode; dot?: string }) {
@@ -130,25 +129,6 @@ export function RiskBadge({ band, score }: { band: string; score?: number }) {
 
 export function riskColor(band: string): string {
   return RISK_COLOR[band] ?? "var(--text-3)";
-}
-
-// ---- Demo banner -------------------------------------------------------------- //
-
-export function DemoBanner({ compact = false, text }: { compact?: boolean; text?: string }) {
-  return (
-    <div
-      role="note"
-      className={clsx(
-        "flex items-start gap-2 rounded-lg border border-status-warning/50 bg-status-warning/10 text-ink",
-        compact ? "px-3 py-1.5 text-xs" : "px-4 py-3 text-sm",
-      )}
-    >
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--status-warning)" }} aria-hidden />
-      <span>
-        <strong>DEMO DATA — NOT REAL SOCIAL MEDIA DATA.</strong> {text ?? "Synthetic sample for demonstration only; results do not measure real-world performance."}
-      </span>
-    </div>
-  );
 }
 
 // ---- States ---------------------------------------------------------------------- //
@@ -332,9 +312,16 @@ export function PageHeader({ title, description, actions, badge }: { title: stri
 }
 
 export function SourceTag({ kind }: { kind: "paper" | "ours" }) {
-  return kind === "paper" ? (
-    <Badge tone="neutral">Reported in base paper</Badge>
-  ) : (
-    <Badge tone="accent">Reproduced by this implementation</Badge>
+  return kind === "paper" ? <Badge tone="neutral">Research paper results</Badge> : <Badge tone="accent">Your model performance</Badge>;
+}
+
+const JOB_TONE: Record<string, BadgeTone> = { QUEUED: "neutral", PROCESSING: "accent", COMPLETED: "good", FAILED: "critical", CANCELLED: "neutral", READY: "good", PRODUCTION: "accent", TRAINING: "neutral", DEPRECATED: "neutral", VALIDATED: "good", INVALID: "critical", UPLOADED: "neutral", ACTIVE: "good", DISABLED: "neutral" };
+const JOB_DOT: Record<string, string> = { QUEUED: "var(--text-3)", PROCESSING: "var(--accent)", COMPLETED: "var(--status-good)", FAILED: "var(--status-critical)", READY: "var(--status-good)", PRODUCTION: "var(--accent)", VALIDATED: "var(--status-good)", INVALID: "var(--status-critical)", ACTIVE: "var(--status-good)", DISABLED: "var(--text-3)" };
+
+export function StatusBadge({ status }: { status: string }) {
+  return (
+    <Badge tone={JOB_TONE[status] ?? "neutral"} dot={JOB_DOT[status]}>
+      {status.toLowerCase()}
+    </Badge>
   );
 }

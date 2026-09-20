@@ -1,3 +1,4 @@
+# Local development stack: SQLite + thread jobs + local storage. For production use docker-compose.prod.yml.
 services:
   backend:
     build: ./backend
@@ -8,18 +9,13 @@ services:
       BOTSHIELD_ENVIRONMENT: "development"
       BOTSHIELD_CORS_ORIGINS: "http://localhost:8080,http://localhost:5173"
       BOTSHIELD_DATABASE_URL: "sqlite:////app/data/botshield.db"
-      BOTSHIELD_DATA_DIR: "/app/data"
-      BOTSHIELD_MODELS_DIR: "/app/models"
+      BOTSHIELD_STORAGE_BACKEND: "local"
+      BOTSHIELD_STORAGE_LOCAL_ROOT: "/app/data/storage"
+      BOTSHIELD_JOB_BACKEND: "thread"
     volumes:
-      - ./backend/data:/app/data
-      - ./backend/models:/app/models
+      - backend-data:/app/data
     ports:
       - "8000:8000"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
 
   frontend:
     build: ./frontend
@@ -28,3 +24,6 @@ services:
       - backend
     ports:
       - "8080:80"
+
+volumes:
+  backend-data:

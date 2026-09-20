@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.logging import user_id_var
 from app.core.security import SlidingWindowLimiter, client_ip, decode_access_token, raise_rate_limited
+from app.core.timeutil import ensure_utc
 from app.db.database import get_db
 from app.db.models import Role, User, UserStatus
 
@@ -31,7 +32,7 @@ def get_current_user(
     user = db.get(User, payload["sub"])
     if user is None or user.status != UserStatus.ACTIVE or user.organization_id != payload.get("org"):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials", headers={"WWW-Authenticate": "Bearer"})
-    if user.password_changed_at and payload.get("iat") and int(user.password_changed_at.timestamp()) > int(payload["iat"]) + 1:
+    if user.password_changed_at and payload.get("iat") and int(ensure_utc(user.password_changed_at).timestamp()) > int(payload["iat"]) + 1:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session expired", headers={"WWW-Authenticate": "Bearer"})
     user_id_var.set(user.id)
     request.state.user = user
@@ -61,7 +62,7 @@ def api_rate_limit(request: Request) -> None:
         raise_rate_limited(retry)
 
 
-def ml_rate_limit(request: Request, user: User = Depends(get_current_user)) -> None:
+def ml_rate_limit(user: User = Depends(get_current_user)) -> None:
     """Expensive endpoints (predict, explain, train, batch): per-user limit."""
     ok, retry = _ml_limiter.hit(f"ml:{user.id}")
     if not ok:

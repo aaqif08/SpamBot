@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = "botshield_refresh"
     cookie_secure: bool | None = None  # default: True in staging/production
     cookie_domain: str | None = None
+    # "strict" when the SPA and API share a site; "none" (requires cookie_secure) when they are served
+    # from different domains, e.g. app.example.com + api.example.com or two Render services.
+    cookie_samesite: Literal["strict", "lax", "none"] = "strict"
     password_min_length: int = 10
     login_rate_limit_per_minute: int = 10
     login_lockout_threshold: int = 8  # failed attempts per email before temporary lock
@@ -102,12 +105,25 @@ class Settings(BaseSettings):
     def _env_lower(cls, v: object) -> object:
         return v.lower() if isinstance(v, str) else v
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _normalise_db_url(cls, v: object) -> object:
+        # Managed providers (Render, Heroku, Railway) hand out postgres:// or postgresql:// URLs;
+        # SQLAlchemy 2 + psycopg3 need the explicit driver.
+        if isinstance(v, str):
+            for prefix in ("postgres://", "postgresql://"):
+                if v.startswith(prefix):
+                    return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
     @model_validator(mode="after")
     def _finalise(self) -> "Settings":
         if self.log_json is None:
             self.log_json = self.environment in ("staging", "production")
         if self.cookie_secure is None:
             self.cookie_secure = self.environment in ("staging", "production")
+        if self.cookie_samesite == "none" and not self.cookie_secure:
+            raise ValueError("BOTSHIELD_COOKIE_SAMESITE=none requires BOTSHIELD_COOKIE_SECURE=true")
         if self.docs_enabled is None:
             self.docs_enabled = self.environment != "production"
         if not self.secret_key:

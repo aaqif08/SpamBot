@@ -54,7 +54,7 @@ Dataset (Cresci users.csv [+ tweets.csv])         ml/datasets.py, scripts/fetch_
   → Hold-out evaluation (acc/prec/rec/F1/AUC, CM, ROC, PR)  ml/evaluation.py
   → Global SHAP (mean |SHAP|, beeswarm)             ml/explain.py
   → Model registry (joblib + metadata + metrics)    ml/model_registry.py, backend/models/
-Prediction: account → features → P(bot) → risk score → local SHAP + LIME → SQLite  ml/predict.py, app/services/prediction_service.py
+Prediction: account → features → P(bot) → risk score → local SHAP + LIME → database  ml/predict.py, app/services/prediction_service.py
 ```
 
 Why min–max scaling? The paper's LIME figures show rules like `0.00 < ffratio <= 0.01`, i.e. features in [0, 1]. Why one sklearn `Pipeline`? So the exact same artefact serves prediction, SHAP and LIME (no train/serve skew).
@@ -104,15 +104,15 @@ React + TypeScript + Vite + Tailwind (frontend/src/pages …)
 FastAPI  app/api/*  →  app/services/*  →  ml/*  (no FastAPI imports inside ml/)
         │                                   ├─ features.py, preprocessing.py, sentiment.py
         │                                   ├─ train.py, evaluation.py, explain.py, predict.py
-SQLite (predictions, datasets, models,      └─ model_registry.py → backend/models/<id>/
-        training_runs, batches)                  pipeline.joblib · scaler.joblib · feature_metadata.json ·
-                                                 metrics.json · shap_global.json · background.npy · lime_sample.npy
+PostgreSQL / SQLite (users, orgs, datasets,  └─ model_registry.py → storage org/<org>/models/<id>/
+        models, evaluations, predictions,            pipeline.joblib · feature_metadata.json · metrics.json ·
+        explanations, batches, jobs, audit)          shap_global.json · background.npy · lime_sample.npy · checksums.json
 ```
 
-- **Async training**: `POST /api/train` returns a `job_id`; a single-worker thread runs the job; the UI polls `GET /api/train/status/{job_id}` and shows the stages (queued → preprocessing → feature engineering → training → cross-validation → SHAP analysis → saving → completed).
-- **Adapters**: `SocialNetworkAdapter.fetch_account(identifier) → AccountInput`. `sample` (hand-written demo accounts) and `x_api` (real X API v2: `/2/users/by/username`, `/2/users/:id/tweets`; needs a bearer token; tweets need the Basic tier).
-- **Security**: CSV extension/MIME/size/binary checks, UUID filenames, path-traversal guard, in-memory rate limiter, CORS from env, no secrets in code, Pydantic bounds on every field, typed error envelope `{detail, code}`.
-- **Production mode**: `.env` has `BOTSHIELD_ENVIRONMENT=production`, `BOTSHIELD_DEMO_MODE_ENABLED=false`; demo artefacts were purged; the active model warms up at start-up.
+- **Async jobs**: `POST /api/v1/models/train` (and batches, benchmark imports) create a row in the `jobs` table and return `202 {job_id}`; a thread pool or Celery worker executes it; the UI polls `GET /api/v1/jobs/{id}` and shows stage/progress/log (queued → preprocessing → feature engineering → training → cross-validation → SHAP analysis → saving → completed).
+- **Providers**: `Provider.fetch_account(identifier) → AccountInput`. `manual`, `csv` and `x_api` (real X API v2: `/2/users/by/username`, `/2/users/:id/tweets`; needs `BOTSHIELD_X_BEARER_TOKEN`; tweets need the Basic tier). Without a token the API answers 409 "External data integration is not configured".
+- **Security**: bcrypt passwords + policy + lockout, JWT access tokens + rotating hashed refresh cookies, RBAC (ADMIN/ANALYST/VIEWER), organization scoping on every query, CSV extension/MIME/size/content checks, path-traversal guard, checksum-verified model artefacts, rate limiters, CORS from env, security headers, audit log, no secrets in code or frontend, typed error envelope `{detail, code}` with request ids.
+- **Production mode**: `BOTSHIELD_ENVIRONMENT=production` requires PostgreSQL and `BOTSHIELD_SECRET_KEY`, disables docs, forces secure cookies and JSON logs; migrations are checked at start-up; there is no demo mode and no default account (`python -m app.cli create-admin`).
 
 ## 9. Likely examiner questions — and honest answers
 
@@ -125,23 +125,23 @@ SQLite (predictions, datasets, models,      └─ model_registry.py → backend
 7. *What are the false-positive consequences?* — Blocking a genuine user. The paper stresses precision; our production model's hold-out precision is 0.987 with FPR ≈ 2 %.
 8. *Does it generalise to new bots?* — Partially: Cresci-17 → Cresci-15 F1 0.947; the reverse is 0.607. Bots evolve (paper's own limitation); retraining and richer features (tweets, timing, graph) are the mitigation.
 9. *Why not deep learning / GNNs?* — The paper's aim is interpretability with a compact feature set; tree ensembles are accurate here and explainable with exact SHAP. GNNs are listed as future work.
-10. *What is synthetic in the system?* — Only the optional demo dataset (off in production) and the hand-written sample accounts on the Analyze page; both are banner-labelled "DEMO DATA — NOT REAL SOCIAL MEDIA DATA" and never used for reported results.
+10. *What is synthetic in the system?* — Nothing in the application. The only generated data lives in `backend/tests/fixtures` and is used exclusively by the automated tests; `scripts/check_no_demo_data.py` fails the build if demo/sample/mock patterns appear in production code.
 11. *Where does the live data come from?* — The X API v2 adapter with the deployer's bearer token; nothing is fabricated when the token is missing (the UI says "not configured").
-12. *How would you deploy it?* — `docker compose up --build` (nginx-served frontend proxying `/api` to uvicorn; SQLite and models on volumes); single worker because the training job queue is in-process.
+12. *How would you deploy it?* — `docker compose -f docker-compose.prod.yml up -d --build` (PostgreSQL, Redis, gunicorn API, Celery worker, nginx frontend behind a TLS proxy) or the Render Blueprint; see `docs/deployment.md`.
 
 ## 10. Things you should never claim
 
 - That the app achieved the paper's exact numbers.
-- That demo/sample accounts are real X data.
+- That accounts entered manually are real X data (only the X provider fetches live data, and only when configured).
 - That a prediction "proves" an account is a bot.
 - That the model uses tweet content when the active model card says 20 features.
 
 ## 11. Five-minute demo script
 
 1. **Dashboard** — production model, real-data metrics, empty/real prediction counts.
-2. **Analyze Account** → Load sample account (labelled demo) *or* fetch `@handle` via the X adapter → Analyze → walk through prediction, probability, risk band, SHAP bars/waterfall, LIME rules, interpretation text.
+2. **Analyze Account** → enter an account's profile counts manually *or* fetch `@handle` via the X provider (when configured) → Analyze → walk through prediction, probability, risk band, SHAP bars/waterfall, LIME rules, interpretation text.
 3. **Batch Analysis** → dataset "CRESCI-15 (imported…)" → run → evaluation against labels → download `predictions.csv`.
-4. **Models** → 19 trained models; comparison chart *paper vs ours* per dataset; paper table clearly labelled.
+4. **Models** → trained versions with hold-out/CV metrics; promote/deprecate lifecycle; the paper's table shown separately as "Research paper results".
 5. **Evaluation** → confusion matrix, ROC/PR, 5-fold CV table, feature set + "11 constant features dropped" notice.
 6. **Explainability** → global beeswarm and group importance; pick a stored prediction → local SHAP + LIME.
 7. **Research / Architecture** → paper mapping table and engineering adaptations.
@@ -155,7 +155,7 @@ SQLite (predictions, datasets, models,      └─ model_registry.py → backend
 | Where is training / CV / search? | `backend/ml/train.py` |
 | Where are SHAP and LIME? | `backend/ml/explain.py` |
 | Where do the paper's numbers live? | `backend/ml/paper_results.py` (reference only) |
-| Where are our measured results? | `docs/results.md`, `backend/models/registry.json` |
+| Where are our measured results? | Evaluation page per model (`evaluation_runs` table), `docs/results.md` via `scripts/report_results.py` |
 | Dataset provenance? | `backend/data/datasets/PROVENANCE.md`, `scripts/fetch_datasets.py` |
 | Methodology mapping and adaptations? | `docs/methodology.md`, `docs/paper-analysis.md` |
-| Tests? | `backend/tests/` (52), `frontend/src/test/` (14) |
+| Tests? | `backend/tests/` (58), `frontend/src/test/` (16) |

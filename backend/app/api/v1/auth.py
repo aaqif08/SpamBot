@@ -42,7 +42,7 @@ def _set_refresh_cookie(response: Response, token: str, expires_at) -> None:  # 
         value=token,
         httponly=True,
         secure=bool(s.cookie_secure),
-        samesite="strict",
+        samesite=s.cookie_samesite,
         path="/api/v1/auth",
         domain=s.cookie_domain,
         expires=expires_at,
@@ -51,7 +51,7 @@ def _set_refresh_cookie(response: Response, token: str, expires_at) -> None:  # 
 
 def _clear_refresh_cookie(response: Response) -> None:
     s = get_settings()
-    response.delete_cookie(key=s.refresh_cookie_name, path="/api/v1/auth", domain=s.cookie_domain)
+    response.delete_cookie(key=s.refresh_cookie_name, path="/api/v1/auth", domain=s.cookie_domain, secure=bool(s.cookie_secure), samesite=s.cookie_samesite, httponly=True)
 
 
 @router.get("/auth/setup-status", response_model=SetupStatus)

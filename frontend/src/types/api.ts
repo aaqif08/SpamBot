@@ -1,28 +1,71 @@
-/** TypeScript mirrors of the backend Pydantic schemas (app/schemas/api.py). */
+/** TypeScript mirrors of the backend Pydantic schemas (app/schemas/api.py, API v1). */
 
 export type PredictionLabel = "BOT" | "HUMAN";
 export type RiskBand = "critical" | "high" | "medium" | "low" | "minimal";
+export type RoleName = "ADMIN" | "ANALYST" | "VIEWER";
+export type JobStatus = "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type ModelStatus = "TRAINING" | "READY" | "PRODUCTION" | "DEPRECATED" | "FAILED";
 
-export interface ApiError {
-  detail: string;
-  code: string;
-  errors?: { loc: string[]; msg: string; type: string }[];
+// ---- auth ----------------------------------------------------------------- //
+
+export interface UserPublic {
+  id: string;
+  email: string;
+  full_name: string;
+  role: RoleName;
+  status: "ACTIVE" | "DISABLED";
+  organization_id: string;
+  organization_name: string;
+  last_login_at: string | null;
+  created_at: string;
 }
+
+export interface TokenResponse {
+  access_token: string;
+  token_type: "bearer";
+  expires_in: number;
+  user: UserPublic;
+}
+
+export interface SetupStatus {
+  initialized: boolean;
+  self_signup_enabled: boolean;
+}
+
+export interface OrganizationPublic {
+  id: string;
+  name: string;
+  slug: string;
+  created_at: string;
+}
+
+// ---- system --------------------------------------------------------------- //
 
 export interface HealthResponse {
   status: string;
-  app: string;
+  version: string;
+}
+
+export interface ReadinessResponse {
+  status: string;
   version: string;
   environment: string;
-  model_available: boolean;
-  active_model: ModelEntry | null;
-  datasets_available: number;
-  demo_mode_enabled: boolean;
+  checks: Record<string, unknown>;
+}
+
+export interface RuntimeInfo {
+  version: string;
+  environment: string;
   feature_version: string;
   n_features: number;
+  job_backend: string;
+  storage_backend: string;
   python: string;
   libraries: Record<string, string>;
+  production_model: { id: string; name: string; version: number; algorithm: string; n_features: number } | null;
 }
+
+// ---- metrics / evaluation ------------------------------------------------- //
 
 export interface MetricSet {
   accuracy: number;
@@ -32,24 +75,97 @@ export interface MetricSet {
   roc_auc: number | null;
 }
 
-export interface ModelEntry {
+export interface HistogramBin {
+  bin_start: number;
+  bin_end: number;
+  count: number;
+}
+
+export interface ConfusionMatrix {
+  labels: string[];
+  matrix: number[][];
+  tn: number;
+  fp: number;
+  fn: number;
+  tp: number;
+  false_positive_rate: number;
+  false_negative_rate: number;
+}
+
+export interface RocCurve {
+  fpr: number[];
+  tpr: number[];
+  auc: number | null;
+}
+
+export interface PrCurve {
+  precision: number[];
+  recall: number[];
+  average_precision: number | null;
+}
+
+export interface Evaluation {
+  metrics: MetricSet;
+  confusion_matrix: ConfusionMatrix;
+  roc_curve: RocCurve;
+  pr_curve: PrCurve;
+  probability_histogram: HistogramBin[];
+  n_samples: number;
+  n_positive: number;
+  n_negative: number;
+}
+
+export interface CvResults {
+  folds: MetricSet[];
+  summary: Record<keyof MetricSet, { mean: number; std: number }>;
+  n_folds: number;
+  fit_time_mean: number;
+}
+
+export interface TrainingMetrics {
+  holdout: Evaluation;
+  train: MetricSet;
+  cross_validation: CvResults;
+  split: { test_size: number; train_size: number; test_size_n: number; cv_folds: number; stratified: boolean; seed: number };
+  class_distribution: { train: { human: number; bot: number }; test: { human: number; bot: number } };
+  training_seconds: number;
+  best_params: Record<string, unknown>;
+  hyperparameter_search: boolean;
+}
+
+export interface ImportanceRow {
+  feature: string;
+  group: string;
+  mean_abs_shap: number;
+  mean_shap: number;
+  rank: number;
+}
+
+// ---- models --------------------------------------------------------------- //
+
+export interface ModelPublic {
   id: string;
   name: string;
+  version: number;
   algorithm: string;
-  version: string;
-  dataset_id: string;
+  status: ModelStatus;
+  is_production: boolean;
+  dataset_id: string | null;
+  dataset_version_id: string | null;
   dataset_name: string;
   feature_version: string;
-  n_features: number;
   feature_names: string[];
-  metrics: { holdout: MetricSet; cv: MetricSet; cv_std?: MetricSet };
-  trained_at: string;
+  n_features: number;
   training_seconds: number;
-  params: { config?: Record<string, unknown>; best_params?: Record<string, unknown> };
-  is_demo: boolean;
+  trained_at: string | null;
+  created_at: string;
+  created_by: string | null;
+  job_id: string | null;
   notes: string;
-  is_active?: boolean;
-  source?: string;
+  artifact_checksum: string;
+  test_metrics?: Partial<MetricSet> | null;
+  validation_metrics?: { mean?: Partial<MetricSet>; std?: Partial<MetricSet>; folds?: number } | null;
+  params?: Record<string, unknown> | null;
 }
 
 export interface AlgorithmChoice {
@@ -61,40 +177,116 @@ export interface AlgorithmChoice {
   supports_tree_shap: boolean;
 }
 
-export interface PaperResultRow {
-  algorithm: string;
-  accuracy: number;
-  precision: number;
-  recall: number;
-  f1: number;
-  roc_auc: number;
-}
-
-export interface PaperReported {
-  source: string;
-  citation: PaperCitation;
-  datasets: Record<string, { table: string; results: PaperResultRow[]; highlight: string }>;
-  baselines: Record<string, { cite: string; accuracy: number; f1: number }[]>;
-}
-
-export interface PaperCitation {
-  title: string;
-  authors: string[];
-  venue: string;
-  year: number;
-  doi: string;
-  license: string;
-  protocol: string;
-}
-
 export interface ModelListResponse {
-  active_model_id: string | null;
-  models: ModelEntry[];
+  production_model_id: string | null;
+  models: ModelPublic[];
   supported_algorithms: AlgorithmChoice[];
-  paper_reported: PaperReported;
 }
 
-// ---- prediction ---------------------------------------------------------- //
+export interface EvaluationRunPublic {
+  id: string;
+  kind: "holdout" | "cross_validation" | "dataset";
+  dataset_version_id: string | null;
+  n_samples: number;
+  metrics: MetricSet;
+  details: Partial<TrainingMetrics> & { dataset_name?: string; dataset_id?: string; holdout?: Evaluation };
+  created_at: string;
+}
+
+export interface FeatureMetadata {
+  feature_version: string;
+  feature_names: string[];
+  n_features: number;
+  groups: Record<string, string[]>;
+  feature_selection: { enabled: boolean; top_k?: number; selected?: string[]; dropped?: string[] };
+  dropped_constant_features?: string[];
+  scaling: string;
+  imputation: string;
+  raw_feature_ranges: Record<string, { min: number; max: number; median: number }>;
+}
+
+export interface ModelEvaluationResponse {
+  model: ModelPublic;
+  feature_metadata: FeatureMetadata;
+  evaluations: EvaluationRunPublic[];
+  feature_importance: ImportanceRow[];
+}
+
+export interface BeeswarmPoint {
+  shap: number;
+  value_scaled: number;
+  value: number;
+}
+
+export interface ShapGlobal {
+  explainer: string;
+  output_scale: "probability" | "log_odds";
+  base_value: number;
+  n_samples: number;
+  importance: ImportanceRow[];
+  top_features: string[];
+  group_importance: Record<string, number>;
+  beeswarm: { feature: string; points: BeeswarmPoint[] }[];
+}
+
+export interface GlobalExplanationResponse {
+  model: ModelPublic;
+  shap_global: ShapGlobal;
+  feature_descriptions: Record<string, string>;
+  feature_groups: Record<string, string[]>;
+}
+
+export interface TrainRequest {
+  dataset_id: string;
+  dataset_version_id?: string | null;
+  algorithm: string;
+  test_size: number;
+  cv_folds: number;
+  hyperparameter_search: boolean;
+  search_iterations: number;
+  feature_selection: boolean;
+  feature_selection_top_k: number;
+  seed: number;
+  activate: boolean;
+  notes: string;
+}
+
+export interface TrainSubmitted {
+  job_id: string;
+  model_id: string;
+  status: JobStatus;
+}
+
+// ---- jobs ------------------------------------------------------------------ //
+
+export interface TrainingJobResult {
+  model_id: string;
+  model: ModelPublic;
+  metrics: TrainingMetrics;
+  feature_importance: ImportanceRow[];
+  explainer: string;
+  output_scale: string;
+  activated: boolean;
+}
+
+export interface JobResponse {
+  id: string;
+  job_type: "TRAINING" | "BATCH_PREDICTION" | "DATASET_IMPORT" | "EXPLANATION";
+  status: JobStatus;
+  stage: string;
+  progress: number;
+  message: string;
+  log: string[];
+  error: string | null;
+  result: Record<string, unknown> | null;
+  target_type: string;
+  target_id: string | null;
+  created_at: string;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+// ---- analyses -------------------------------------------------------------- //
 
 export interface TweetInput {
   text: string;
@@ -131,13 +323,10 @@ export interface AccountInput {
   tweets: (TweetInput | string)[];
 }
 
-export interface ModelInfo {
-  id: string;
+export interface ModelRef {
+  id: string | null;
   name: string;
-  algorithm: string;
-  version: string;
-  feature_version: string;
-  n_features: number;
+  version: number;
 }
 
 export interface TopFeature {
@@ -203,9 +392,10 @@ export interface Interpretation {
   disclaimer: string;
 }
 
-export interface PredictResponse {
-  prediction_id: string | null;
+export interface AnalysisResponse {
+  prediction_id: string;
   account_identifier: string;
+  account_ref: string | null;
   prediction: PredictionLabel;
   bot_probability: number;
   human_probability: number;
@@ -213,94 +403,101 @@ export interface PredictResponse {
   risk_score: number;
   risk_band: RiskBand;
   risk_score_note: string;
-  model: ModelInfo;
+  model: ModelRef;
   features: Record<string, number>;
   feature_groups: Record<string, Record<string, number>>;
   auxiliary: Record<string, number>;
+  input_summary: Record<string, unknown>;
   top_features: TopFeature[];
   shap_explanation: ShapLocal | null;
   lime_explanation: LimeLocal | null;
   explanation_errors: Record<string, string>;
+  explanation_status: Record<string, string>;
   interpretation: Interpretation;
-  is_demo: boolean;
-  created_at: string | null;
-  input?: Record<string, unknown>;
-  source?: string;
-  batch_id?: string | null;
-}
-
-export interface HistogramBin {
-  bin_start: number;
-  bin_end: number;
-  count: number;
-}
-
-export interface ConfusionMatrix {
-  labels: string[];
-  matrix: number[][];
-  tn: number;
-  fp: number;
-  fn: number;
-  tp: number;
-  false_positive_rate: number;
-  false_negative_rate: number;
-}
-
-export interface RocCurve {
-  fpr: number[];
-  tpr: number[];
-  auc: number | null;
-}
-
-export interface PrCurve {
-  precision: number[];
-  recall: number[];
-  average_precision: number | null;
-}
-
-export interface Evaluation {
-  metrics: MetricSet;
-  confusion_matrix: ConfusionMatrix;
-  roc_curve: RocCurve;
-  pr_curve: PrCurve;
-  probability_histogram: HistogramBin[];
-  n_samples: number;
-  n_positive: number;
-  n_negative: number;
-}
-
-export interface BatchSummary {
-  batch_id: string;
-  name: string;
-  model: ModelInfo;
-  total_accounts: number;
-  predicted_bots: number;
-  predicted_humans: number;
-  average_bot_probability: number;
-  high_risk_accounts: number;
-  risk_band_distribution: Record<string, number>;
-  probability_histogram: HistogramBin[];
-  preview: Record<string, string | number | null>[];
-  evaluation: Evaluation | null;
-  is_demo: boolean;
-  download_url: string;
+  source: string;
+  status: string;
+  batch_id: string | null;
+  label_true: string | null;
+  inference_ms: number;
   created_at: string;
+  created_by: string | null;
 }
 
-export interface BatchListItem {
-  batch_id: string;
-  name: string;
+export interface LocalExplanationResponse {
+  prediction_id: string;
+  method: "shap" | "lime";
+  explanation: ShapLocal | LimeLocal;
+  computed_now: boolean;
+}
+
+export interface HistoryItem {
+  id: string;
+  account_identifier: string;
+  prediction: PredictionLabel;
+  bot_probability: number;
+  risk_score: number;
+  risk_band: RiskBand;
+  model_id: string | null;
   model_name: string;
-  total_accounts: number;
-  predicted_bots: number;
-  predicted_humans: number;
-  average_bot_probability: number;
-  high_risk_accounts: number;
-  is_demo: boolean;
+  model_version: number;
+  source: string;
+  status: string;
+  batch_id: string | null;
+  label_true: string | null;
   created_at: string;
 }
 
-// ---- datasets ------------------------------------------------------------- //
+export interface HistoryResponse {
+  items: HistoryItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface HistoryFilters {
+  prediction?: PredictionLabel | "";
+  min_risk?: number;
+  model_id?: string;
+  source?: string;
+  batch_id?: string;
+  date_from?: string;
+  date_to?: string;
+  search?: string;
+  sort?: string;
+  page?: number;
+  page_size?: number;
+}
+
+// ---- batches --------------------------------------------------------------- //
+
+export interface BatchResponse {
+  id: string;
+  name: string;
+  status: JobStatus;
+  job_id: string | null;
+  model: ModelRef | null;
+  dataset_version_id: string | null;
+  total_rows: number;
+  processed_rows: number;
+  failed_rows: number;
+  n_bots: number;
+  n_humans: number;
+  avg_bot_probability: number;
+  high_risk: number;
+  summary: {
+    risk_band_distribution?: Record<string, number>;
+    probability_histogram?: HistogramBin[];
+    top_features_exported?: string[];
+    label_column?: string | null;
+    evaluation?: Evaluation | null;
+  };
+  error: string | null;
+  has_output: boolean;
+  created_at: string;
+  completed_at: string | null;
+}
+
+// ---- datasets --------------------------------------------------------------- //
 
 export interface FeatureAvailability {
   direct: string[];
@@ -325,233 +522,69 @@ export interface DatasetSummary {
   warnings: string[];
 }
 
-export interface DatasetInfo {
+export interface DatasetVersionPublic {
   id: string;
-  name: string;
-  kind: string;
+  dataset_id: string;
+  version: number;
   original_filename: string;
+  size_bytes: number;
+  checksum_sha256: string;
   n_rows: number;
   n_columns: number;
   has_label: boolean;
-  is_demo: boolean;
+  label_column: string | null;
+  status: string;
+  validation_errors: string[];
+  created_at: string;
+  summary?: DatasetSummary | null;
+}
+
+export interface DatasetPublic {
+  id: string;
+  name: string;
+  description: string;
+  kind: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  n_versions: number;
+  current_version: DatasetVersionPublic | null;
+  n_rows: number;
+  n_columns: number;
+  has_label: boolean;
   class_distribution: Record<string, number> | null;
   feature_coverage: number | null;
-  created_at: string;
+  models_trained: number;
+  summary?: DatasetSummary | null;
+  versions?: DatasetVersionPublic[] | null;
 }
 
-export interface DatasetDetail extends DatasetInfo {
-  summary: DatasetSummary;
-}
-
-export interface CresciStatus {
+export interface BenchmarkStatus {
   kind: string;
   available: boolean;
-  imported: boolean;
-  dataset_id: string | null;
   subsets_found: { folder: string; category: string; label: number; has_tweets: boolean }[];
   expected_subsets: string[];
   paper_reported: { citation: string; subsets: { name: string; type: string; accounts: number; tweets: number }[] };
   install_path_hint: string;
 }
 
-export interface DatasetEvaluationResponse {
-  dataset_id: string;
-  model: ModelInfo;
-  n_rows: number;
-  evaluation: Evaluation;
-  is_demo: boolean;
-}
-
-// ---- training ------------------------------------------------------------- //
-
-export interface TrainRequest {
-  dataset_id: string;
-  algorithm: string;
-  test_size: number;
-  cv_folds: number;
-  hyperparameter_search: boolean;
-  search_iterations: number;
-  feature_selection: boolean;
-  feature_selection_top_k: number;
-  seed: number;
-  activate: boolean;
-  notes: string;
-}
-
-export interface TrainJobResponse {
-  job_id: string;
-  status: string;
-  stage: string;
-  progress: number;
-  message: string;
-  run_id: string;
-}
-
-export interface TrainStatusResponse {
-  job_id: string;
-  status: "queued" | "running" | "completed" | "failed";
-  stage: string;
-  progress: number;
-  message: string;
-  log: string[];
-  error: string | null;
-  result: TrainResult | null;
-}
-
-export interface TrainResult {
-  model_id: string;
-  model: ModelEntry;
-  metrics: EvaluationMetrics;
-  shap_global: { importance: ImportanceRow[]; explainer: string; output_scale: string };
-  is_demo: boolean;
-  dataset?: DatasetDetail;
-}
-
-export interface CvResults {
-  folds: MetricSet[];
-  summary: Record<keyof MetricSet, { mean: number; std: number }>;
-  n_folds: number;
-  fit_time_mean: number;
-}
-
-export interface EvaluationMetrics {
-  holdout: Evaluation;
-  train: MetricSet;
-  cross_validation: CvResults;
-  split: { test_size: number; train_size: number; test_size_n: number; cv_folds: number; stratified: boolean; seed: number };
-  class_distribution: { train: { human: number; bot: number }; test: { human: number; bot: number } };
-  training_seconds: number;
-  best_params: Record<string, unknown>;
-  hyperparameter_search: boolean;
-}
-
-export interface TrainingRunInfo {
-  id: string;
-  job_id: string;
-  model: string;
-  dataset: string;
-  dataset_id: string;
-  status: string;
-  stage: string;
-  progress: number;
-  params: Record<string, unknown>;
-  metrics: { holdout: MetricSet; cv: MetricSet; training_seconds: number } | null;
-  model_id: string | null;
-  error: string | null;
-  is_demo: boolean;
-  created_at: string;
-  completed_at: string | null;
-}
-
-// ---- evaluation / explainability ------------------------------------------- //
-
-export interface FeatureMetadata {
-  feature_version: string;
-  feature_names: string[];
-  n_features: number;
-  groups: Record<string, string[]>;
-  feature_selection: { enabled: boolean; top_k?: number; selected?: string[]; dropped?: string[] };
-  dropped_constant_features?: string[];
-  scaling: string;
-  imputation: string;
-  raw_feature_ranges: Record<string, { min: number; max: number; median: number }>;
-}
-
-export interface EvaluationResponse {
-  model: ModelEntry;
-  dataset: { id: string; name: string; is_demo: boolean };
-  feature_metadata: FeatureMetadata;
-  metrics: EvaluationMetrics;
-  is_demo: boolean;
-  source: string;
-}
-
-export interface ImportanceRow {
-  feature: string;
-  group: string;
-  mean_abs_shap: number;
-  mean_shap: number;
-  rank: number;
-}
-
-export interface BeeswarmPoint {
-  shap: number;
-  value_scaled: number;
-  value: number;
-}
-
-export interface ShapGlobal {
-  explainer: string;
-  output_scale: "probability" | "log_odds";
-  base_value: number;
+export interface EvaluationResult {
+  model: ModelRef;
+  dataset_version_id: string;
   n_samples: number;
-  importance: ImportanceRow[];
-  top_features: string[];
-  group_importance: Record<string, number>;
-  beeswarm: { feature: string; points: BeeswarmPoint[] }[];
+  evaluation: Evaluation;
+  evaluation_run_id: string;
 }
 
-export interface GlobalExplanationResponse {
-  model: ModelEntry;
-  shap_global: ShapGlobal;
-  feature_descriptions: Record<string, string>;
-  feature_groups: Record<string, string[]>;
-  is_demo: boolean;
-}
-
-export interface LocalExplanationResponse {
-  prediction_id: string;
-  method: "shap" | "lime";
-  prediction: PredictionLabel;
-  bot_probability: number;
-  model_name: string;
-  explanation: ShapLocal | LimeLocal;
-  features: Record<string, number>;
-}
-
-// ---- history / dashboard ---------------------------------------------------- //
-
-export interface HistoryItem {
-  id: string;
-  account_identifier: string;
-  prediction: PredictionLabel;
-  bot_probability: number;
-  risk_score: number;
-  risk_band: RiskBand;
-  model_name: string;
-  model_version: string;
-  source: string;
-  is_demo: boolean;
-  created_at: string;
-}
-
-export interface HistoryResponse {
-  items: HistoryItem[];
-  total: number;
-  page: number;
-  page_size: number;
-}
-
-export interface HistoryFilters {
-  prediction?: PredictionLabel | "";
-  high_risk?: boolean;
-  min_risk?: number;
-  model?: string;
-  source?: string;
-  date_from?: string;
-  date_to?: string;
-  search?: string;
-  page?: number;
-  page_size?: number;
-}
+// ---- dashboard ---------------------------------------------------------------- //
 
 export interface ModelComparisonRow {
   id: string;
   name: string;
+  version: number;
   algorithm: string;
+  status: ModelStatus;
   dataset: string;
-  is_demo: boolean;
-  is_active: boolean;
   accuracy: number | null;
   precision: number | null;
   recall: number | null;
@@ -562,75 +595,102 @@ export interface ModelComparisonRow {
 
 export interface DashboardResponse {
   cards: {
-    total_accounts_analyzed: number;
-    bots_detected: number;
-    humans_detected: number;
+    accounts_analyzed: number;
+    predictions_total: number;
+    bots_classified: number;
+    humans_classified: number;
+    bot_rate: number | null;
     average_bot_probability: number | null;
-    high_risk_accounts: number;
-    current_model: string | null;
-    current_model_algorithm: string | null;
-    datasets_registered: number;
-    demo_predictions: number;
+    high_risk: number;
+    datasets: number;
+    models: number;
+    jobs_total: number;
+    jobs_running: number;
+    batches: number;
+    latest_analysis_at: string | null;
+    production_model: { id: string; name: string; version: number; algorithm: string } | null;
   };
   charts: {
     bot_vs_human: { name: string; value: number }[];
     probability_histogram: HistogramBin[];
+    timeline: { date: string; BOT: number; HUMAN: number }[];
+    risk_distribution: { band: string; count: number }[];
+    model_usage: { model: string; count: number }[];
     feature_importance: ImportanceRow[];
     model_comparison: ModelComparisonRow[];
-    confusion_matrix: ConfusionMatrix | null;
-    roc_curve: RocCurve | null;
-    dataset_class_distribution: {
-      dataset: string;
-      train: { human: number; bot: number } | null;
-      test: { human: number; bot: number } | null;
-      is_demo: boolean;
-    } | null;
-    timeline: { date: string; BOT: number; HUMAN: number }[];
+    production_holdout: { metrics: MetricSet; confusion_matrix: ConfusionMatrix | null; roc_curve: RocCurve | null; n_samples: number; class_distribution: TrainingMetrics["class_distribution"] | null } | null;
   };
-  active_model: ModelEntry | null;
+  production_model: ModelPublic | null;
   has_model: boolean;
   has_predictions: boolean;
-  notices: string[];
 }
 
-// ---- misc --------------------------------------------------------------------- //
+// ---- providers / audit / research --------------------------------------------- //
 
-export interface AdapterInfo {
+export interface ProviderInfo {
   name: string;
   kind: string;
   configured: boolean;
   description: string;
-  is_sample: boolean;
+  fetchable: boolean;
+  configuration_hint: string | null;
 }
 
-export interface AdapterFetchResponse {
+export interface ProviderFetchResponse {
   account: AccountInput;
   source: string;
-  notice?: string;
-  sample_id?: string;
   fetched_at?: string;
-  user_id?: string;
-  created_at?: string;
   protected?: boolean;
   tweets_fetched: number;
   tweets_error?: string | null;
   unavailable_fields: string[];
   cached?: boolean;
+  notice?: string;
 }
 
-export interface SampleAccount {
-  sample_id: string;
-  label_hint: string;
-  notice: string;
-  account: AccountInput;
+export interface AuditItem {
+  id: string;
+  action: string;
+  actor_email: string;
+  target_type: string;
+  target_id: string;
+  outcome: string;
+  ip_address: string;
+  details: Record<string, unknown>;
+  created_at: string;
 }
 
-export interface FeaturesResponse {
-  feature_version: string;
-  n_features: number;
-  groups: Record<string, string[]>;
-  descriptions: Record<string, string>;
-  order: string[];
+export interface AuditResponse {
+  items: AuditItem[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export interface PaperCitation {
+  title: string;
+  authors: string[];
+  venue: string;
+  year: number;
+  doi: string;
+  license: string;
+  protocol: string;
+}
+
+export interface PaperResultRow {
+  algorithm: string;
+  accuracy: number;
+  precision: number;
+  recall: number;
+  f1: number;
+  roc_auc: number;
+}
+
+export interface PaperReported {
+  source: string;
+  citation: PaperCitation;
+  datasets: Record<string, { table: string; results: PaperResultRow[]; highlight: string }>;
+  baselines: Record<string, { cite: string; accuracy: number; f1: number }[]>;
 }
 
 export interface ResearchResponse {

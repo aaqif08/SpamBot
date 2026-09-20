@@ -132,7 +132,7 @@ FEATURE_DESCRIPTIONS: dict[str, str] = {
     "avg_subjectivity": "Mean sentiment subjectivity of cleaned tweet text (0…1)",
 }
 
-#: Feature names that are boolean-like (used for UI formatting and demo data).
+#: Feature names that are boolean-like (used for UI formatting).
 BINARY_FEATURES: frozenset[str] = frozenset(
     {
         "verified",

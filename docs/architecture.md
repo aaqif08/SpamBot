@@ -1,182 +1,120 @@
-# BotShield AI — System Architecture
+# System architecture
 
-Interpretable AI-Based Social Bot and Fake Follower Detection System.
+BotShield AI is three cooperating parts: a React/TypeScript single-page application that only consumes typed JSON, a FastAPI backend that owns authentication, authorization, tenancy, persistence, jobs and storage, and a framework-independent ML package (`backend/ml`) that implements the paper's method and knows nothing about HTTP or databases.
 
-## 1. High-level view
-
-```
-┌───────────────────────────────┐        ┌──────────────────────────────────────────┐
-│  Frontend (React + TS + Vite) │  HTTP  │  Backend (FastAPI)                       │
-│  Tailwind, Recharts, Lucide   │◄──────►│  app/api/*  → app/services/* → ml/*      │
-│  pages: dashboard, analyze,   │  JSON  │  SQLite (SQLAlchemy)  models/ (joblib)   │
-│  batch, datasets, models, …   │        │  background job runner (training)        │
-└───────────────────────────────┘        └──────────────────────────────────────────┘
-```
-
-Two independent packages in one repository:
-
-- `frontend/` — knows nothing about ML; consumes typed JSON from `/api/*`.
-- `backend/` — `app/` (HTTP layer) is a thin shell around `ml/` (pure Python ML package with no FastAPI imports).
-
-## 2. Backend architecture
+## 1. Runtime topology
 
 ```
-backend/
-├── app/
-│   ├── main.py            FastAPI app factory, CORS, exception handlers, router mounting
-│   ├── core/
-│   │   ├── config.py      pydantic-settings (env vars), paths
-│   │   ├── logging.py     structured logging config
-│   │   └── security.py    filename sanitisation, upload validation, simple rate limiter
-│   ├── db/
-│   │   ├── database.py    SQLAlchemy engine/session (SQLite)
-│   │   └── models.py      ORM tables: predictions, datasets, models, training_runs
-│   ├── schemas/           Pydantic request/response models (API contract)
-│   ├── services/          orchestration: prediction, dataset, training, dashboard, explanation
-│   └── api/               routers: health, models, predict, datasets, train, evaluation, explain, history, dashboard, adapters
-├── ml/                    framework-independent ML package
-│   ├── features.py        FEATURE_GROUPS (31 features), FeatureExtractor
-│   ├── preprocessing.py   text cleaning (feature path / sentiment path), imputation, scaling
-│   ├── sentiment.py       polarity/subjectivity (TextBlob) with emoji→text
-│   ├── train.py           model zoo, CV, hyperparameter search, training orchestration
-│   ├── evaluation.py      metrics, confusion matrix, ROC/PR curves
-│   ├── explain.py         SHAP (global/local) + LIME (local)
-│   ├── predict.py         Predictor: load registry model → features → proba → risk score
-│   ├── model_registry.py  registry.json management under models/
-│   ├── datasets.py        Cresci loader (users.csv + tweets.csv), CSV schema inference
-│   ├── demo_data.py       synthetic demo generator (labelled DEMO)
-│   ├── schemas.py         dataclasses for ML-level results
-│   └── utils.py           helpers (json-safe, timers, seeds)
-├── models/                trained artefacts (joblib + metadata + registry.json)
-├── data/                  datasets/ (cresci-15, cresci-17, demo, uploads/)
-└── tests/
+browser ──HTTPS──► reverse proxy (TLS) ──► frontend (nginx, static SPA)
+                                              │ /api/*  (same-origin proxy)
+                                              ▼
+                                     api (gunicorn + uvicorn workers)
+                                       ├── PostgreSQL  (system of record)
+                                       ├── object storage / volume  (datasets, model artefacts, batch outputs)
+                                       └── Redis ──► worker (Celery)  — or thread pool inside the API
 ```
 
-### 2.1 Data flow — single prediction
+Development runs the same code on SQLite, local storage and an in-process thread pool (`docker-compose.yml` or `uvicorn --reload`). Production uses `docker-compose.prod.yml` or the Render Blueprint; see `docs/deployment.md`.
+
+## 2. Backend layout
 
 ```
-POST /api/predict (AccountInput)
-  → PredictionService.predict()
-      → FeatureExtractor.transform(account)          # 31-feature vector
-      → Predictor.predict_proba(vector)               # scaler + model from registry
-      → risk_score = round(p_bot * 100)
-      → Explainer.shap_local(vector)  (TreeExplainer for tree models, else KernelExplainer w/ background)
-      → Explainer.lime_local(vector)  (LimeTabularExplainer trained on the model's training features)
-      → persist Prediction row (+ explanation JSON) in SQLite
-  ← PredictionResponse
+backend/app
+├── main.py            app factory; RequestContextMiddleware (X-Request-ID, security headers, HSTS, body-size guard, access log),
+│                      CORS, proxy headers, exception handlers ({detail, code}), lifespan (migration check, job recovery, retention)
+├── cli.py             migrate · create-admin · check-config · purge-expired-sessions · apply-retention
+├── worker.py          Celery app; task botshield.run_job(job_id) → services.jobs.execute_job
+├── api/
+│   ├── deps.py        get_current_user (Bearer JWT, org + password-change checks), require_roles, rate-limit dependencies
+│   └── v1/            auth.py · analyses.py (analyses + batches) · datasets.py · models.py · system.py
+├── core/
+│   ├── config.py      Settings (BOTSHIELD_*), production validation (no SQLite, SECRET_KEY, cookie rules, URL normalisation)
+│   ├── security.py    bcrypt, password policy, JWT, opaque refresh tokens (HMAC-hashed), SlidingWindowLimiter, upload validation
+│   ├── storage.py     Storage ABC → LocalStorage (traversal-safe) | S3Storage (boto3, local cache for artefact loading)
+│   ├── logging.py     JSON/plain logging, request/user context vars, secret scrubbing
+│   └── timeutil.py
+├── db/
+│   ├── database.py    engine/session factory, connection + migration-revision checks
+│   └── models.py      ORM (below)
+├── schemas/api.py     Pydantic v2 request/response models (mirrored in frontend/src/types/api.ts)
+└── services/
+    ├── auth_service.py        organizations, users, login (lockout), token issue/rotate/revoke, password change/reset
+    ├── prediction_service.py  analyze → persist Prediction (+ Explanation rows) → interpretation text; history; purge
+    ├── dataset_service.py     upload validation/profiling, versions, benchmark import, evaluation on labelled data
+    ├── model_service.py       lifecycle TRAINING→READY→PRODUCTION→DEPRECATED, checksum-verified loading + cache, persistence
+    ├── jobs.py / handlers.py  jobs table, thread or Celery dispatch, handlers: training, batch_prediction, dataset_import
+    ├── dashboard_service.py   aggregates per organization (no placeholders: empty → empty state)
+    ├── audit.py               audit rows + security log, sensitive keys scrubbed
+    ├── providers.py           manual · csv · x_api (X API v2; 409 when not configured)
+    └── retention.py           scheduled purge when retention windows are configured
 ```
 
-### 2.2 Data flow — training (async job)
+### Request flow — single analysis
 
 ```
-POST /api/train {dataset_id, model_name, test_size, cv_folds, feature_selection}
-  → JobManager.submit(train_job) → job_id           # background thread
-  GET /api/train/status/{job_id}                     # stages: queued → preprocessing → feature_engineering
-                                                     #   → training → cross_validation → shap_analysis → saving → completed
-  on completion: models/<run_id>/ {model.joblib, scaler.joblib, feature_metadata.json, metrics.json,
-                                   shap_global.json, background.npy}  + registry.json entry + training_runs row
+POST /api/v1/analyses  (Bearer token, role ≥ ANALYST, ML rate limit)
+  → schemas.AnalyzeRequest (AccountInput validated)
+  → ModelService.resolve(org, model_id | production)      # 409 when no production model
+  → ModelService.load(model)                               # verify SHA-256 checksums → joblib pipeline (cached)
+  → InferenceEngine.predict_account                        # FeatureExtractor (31) → pipeline → P(bot) → risk
+        ├── SHAP local (TreeExplainer / KernelExplainer)
+        └── LIME local (LimeTabularExplainer on stored sample)
+  → PredictionService: upsert AnalyzedAccount, insert Prediction + Explanation rows, audit "analysis.created"
+  → 201 AnalysisResponse (prediction, probabilities, risk_score + note, features, SHAP, LIME, interpretation)
 ```
 
-### 2.3 Data flow — dataset upload
+### Job flow — training
 
 ```
-POST /api/datasets/upload (multipart CSV, ≤ MAX_UPLOAD_MB)
-  → validate extension/MIME/size → sanitise filename → save to data/uploads/<uuid>.csv
-  → DatasetService.inspect(): rows, columns, dtypes, missing, duplicates, label detection,
-                               feature availability against the 31-feature schema, class distribution
-  → Dataset row in SQLite
-POST /api/predict/batch {dataset_id} or multipart CSV
-  → FeatureExtractor.transform_frame() → Predictor.predict_frame() → summary + downloadable CSV
+POST /api/v1/models/train → Job(QUEUED) + MLModel(TRAINING) → dispatch (thread pool | Celery)
+  handlers.training_job: load DatasetVersion from storage → ml.train.train_model
+     (label coercion → 31 features → drop constant → stratified split → Pipeline(imputer→MinMax→clf)
+      → RandomizedSearchCV(F1, k-fold) → hold-out evaluation → global SHAP → artefacts + checksums)
+  → ModelService.persist_training_result: upload artefacts to storage, EvaluationRun(holdout, cross_validation),
+    FeatureImportance rows, status READY (or PRODUCTION when activate=true and caller is ADMIN)
+GET /api/v1/jobs/{id} → progress/stage/log/result
 ```
 
-## 3. Database schema (SQLite)
+Batch prediction and benchmark import follow the same pattern; interrupted jobs are marked FAILED at start-up.
+
+## 3. Data model
+
+| Table | Purpose |
+|---|---|
+| `organizations`, `users`, `refresh_sessions`, `password_reset_tokens` | tenancy, accounts (bcrypt hash, role, status, lockout, `password_changed_at`), rotating refresh sessions (hashed), reset tokens (hashed) |
+| `datasets`, `dataset_versions` | named datasets with immutable versions: storage key, SHA-256, rows/columns, label column, validation status, profile JSON |
+| `ml_models` | version, algorithm, status, dataset link, feature metadata, `artifact_prefix`, `artifact_checksums_json`, test/validation metrics |
+| `evaluation_runs`, `feature_importance` | hold-out / cross-validation / dataset evaluations with full detail JSON; global mean |SHAP| per feature |
+| `analyzed_accounts`, `predictions`, `explanations` | one row per scored account (features, probabilities, risk, input summary — no raw tweet text), SHAP/LIME payloads by method |
+| `batches` | batch metadata, storage keys of input/output, summary JSON |
+| `jobs` | type, status, progress, stage, message, log, result, error, target |
+| `audit_log` | action, actor, organization, target, outcome, IP, scrubbed details |
+
+Every business table carries `organization_id`; services filter on it unconditionally. Migrations live in `backend/alembic/versions` (initial schema `20260919_aea49a2b381c`).
+
+## 4. Storage layout
 
 ```
-predictions
-  id TEXT PK, account_identifier TEXT, prediction TEXT (BOT|HUMAN), bot_probability REAL,
-  human_probability REAL, risk_score INTEGER, model_name TEXT, model_version TEXT,
-  features_json TEXT, shap_json TEXT, lime_json TEXT, input_json TEXT, source TEXT,
-  is_demo BOOLEAN, created_at DATETIME
-
-datasets
-  id TEXT PK, name TEXT, kind TEXT (cresci-15|cresci-17|upload|demo), path TEXT,
-  n_rows INTEGER, n_columns INTEGER, has_label BOOLEAN, summary_json TEXT,
-  is_demo BOOLEAN, created_at DATETIME
-
-models
-  id TEXT PK, name TEXT, algorithm TEXT, version TEXT, dataset_id TEXT, dataset_name TEXT,
-  feature_version TEXT, n_features INTEGER, metrics_json TEXT, path TEXT,
-  is_active BOOLEAN, trained_at DATETIME
-
-training_runs
-  id TEXT PK, job_id TEXT, model TEXT, dataset TEXT, status TEXT, stage TEXT, progress REAL,
-  params_json TEXT, metrics_json TEXT, error TEXT, created_at DATETIME, completed_at DATETIME
+org/<organization_id>/
+├── datasets/<dataset_id>/v<n>/<checksum>.csv
+├── models/<model_id>/pipeline.joblib · feature_metadata.json · metrics.json · shap_global.json ·
+│                     background.npy · lime_sample.npy · lime_sample_raw.npy · checksums.json
+└── batches/<batch_id>/input.csv · predictions.csv
 ```
 
-## 4. API contract (summary — full detail in `docs/api.md`)
+Model artefacts are loaded only after every file's SHA-256 matches the checksum stored in `ml_models.artifact_checksums_json`; a mismatch raises `ArtifactIntegrityError` and the model cannot be activated or used.
 
-| Method | Path | Purpose |
-|---|---|---|
-| GET | /api/health | liveness + model/dataset availability flags |
-| GET | /api/models | registry listing (+ paper-reported results, separately keyed) |
-| POST | /api/models/{id}/activate | set active model |
-| POST | /api/predict | single account prediction with SHAP + LIME |
-| POST | /api/predict/batch | CSV upload or dataset_id → batch summary + download token |
-| GET | /api/predict/batch/{batch_id}/download | predictions.csv |
-| GET/POST | /api/datasets, /api/datasets/upload | list / upload |
-| GET | /api/datasets/{id} | inspection summary |
-| POST | /api/datasets/{id}/evaluate | evaluate active model on labelled dataset |
-| POST | /api/datasets/import-cresci | scan data/datasets for Cresci folders |
-| POST | /api/train | submit async training job |
-| GET | /api/train/status/{job_id} | poll |
-| GET | /api/train/runs | history of training runs |
-| GET | /api/evaluation/{model_id} | metrics, CM, ROC, PR, CV results |
-| GET | /api/explain/global/{model_id} | SHAP global importance + beeswarm sample |
-| GET | /api/explain/shap/{prediction_id} | stored local SHAP |
-| GET | /api/explain/lime/{prediction_id} | stored local LIME |
-| GET | /api/history, /api/history/{id} | prediction history |
-| GET | /api/dashboard | aggregate cards + chart data |
-| GET | /api/adapters, POST /api/adapters/{name}/fetch | social-network adapter interface (sample adapter only) |
-| GET | /api/sample-account | labelled demo account |
+## 5. Frontend
 
-Errors use `{"detail": str, "code": str}` with proper 4xx/5xx codes.
+- `src/services/api.ts` — typed client for `/api/v1`; access token in memory, silent `/auth/refresh` on 401 (single in-flight refresh), `credentials: "include"` for the cookie.
+- `src/hooks/useAuth.tsx` — `AuthProvider`, `RequireAuth` (route guard with optional roles), `hasRole`.
+- Pages render empty states from real API responses (no placeholder charts); jobs are polled through `useJobPolling` → `/jobs/{id}`.
+- Paper-reported numbers and measured numbers are rendered with distinct `SourceTag`s ("Research paper results" vs "Your model performance").
 
-## 5. ML architecture
+## 6. Security controls (summary)
 
-- **FeatureExtractor** is the single source of truth for the 31 features (`FEATURE_GROUPS` in `ml/features.py`). It accepts either an *account dict* (profile counts + description + list of tweets) or a *pre-aggregated row* (CSV with count columns) and produces the same ordered vector.
-- **Preprocessing** applies the paper's two text paths; numeric imputation (median from training) + min–max scaling (fit at training time, persisted as `scaler.joblib`).
-- **Model zoo** (`ml/train.py`): 9 estimators with small randomised search spaces; every model wrapped in an sklearn `Pipeline(imputer → scaler → clf)` so the same artefact serves prediction, SHAP and LIME.
-- **Explainers**: `shap.TreeExplainer` for RF/ET/DT/XGB/LGBM/AdaBoost-with-trees (falls back to `shap.Explainer` / `KernelExplainer` with a stored background sample for SVM/LR/NB). LIME via `lime.lime_tabular.LimeTabularExplainer` with training data statistics stored per model.
-- **Risk score** = `round(100 × P(bot))` — an application-level view of the model probability, not a verdict.
+bcrypt + password policy + lockout · JWT HS256 (30 min) + rotating hashed refresh tokens in httpOnly/Secure/SameSite cookies · tokens invalidated on password change · RBAC dependencies · organization scoping · per-IP, per-user and login rate limits with `Retry-After` · upload validation (extension, MIME, content sniffing, size, row limits) · path-traversal-safe local storage · checksum-verified artefacts (no blind joblib/pickle loads) · request ids + structured logs with secret scrubbing · security headers, HSTS, `Cache-Control: no-store` on API responses · docs disabled in production by default · no default accounts, `.env` ignored by git.
 
-## 6. Frontend architecture
+## 7. Related documents
 
-```
-frontend/src/
-├── layouts/AppLayout.tsx        sidebar + topbar + theme toggle + backend status
-├── pages/                       one file per route
-├── components/ui/               Card, Button, Badge, Table, EmptyState, ErrorState, Spinner, Tabs …
-├── components/charts/           Recharts wrappers (Bar, Pie, Line/ROC, Histogram, ConfusionMatrix, ShapBar, ShapWaterfall, Beeswarm)
-├── hooks/                       useApi (loading/error/data), useTheme, usePolling
-├── services/api.ts              typed fetch client for every endpoint
-├── types/                       TS mirrors of Pydantic schemas
-└── utils/                       formatters, download helpers
-```
-
-State is per-page (`useApi`) with a global theme + backend-health context. Every page has loading, error, and empty states; a global error boundary prevents blank pages.
-
-## 7. Security decisions
-
-- Upload: extension + content sniff + size cap; filenames replaced by UUID; original name stored only as metadata.
-- Paths never returned to the client; datasets referenced by id.
-- CORS origins from env; no secrets in code; `.env.example` documents all settings.
-- In-memory token-bucket rate limiter on predict/upload/train routes (configurable).
-- Pydantic validation with bounds on all numeric fields; CSV column validation before inference.
-
-## 8. Engineering adaptations from the paper (documented, not silent)
-
-1. Derived-feature formulas are not given in the paper; we use standard definitions (see `docs/methodology.md`).
-2. Hyperparameter grids are not published; we use compact randomised searches per model.
-3. TextBlob used for sentiment (paper does not name the library; feature names match TextBlob output).
-4. Production data: `scripts/fetch_datasets.py` downloads the public user-level mirror of Cresci-2015/2017 (exact paper subsets); the tweet files are only distributed by the authors, so tweet-derived features are dropped as constant until they are added. A labelled synthetic demo dataset exists only behind `BOTSHIELD_DEMO_MODE_ENABLED=true`.
-5. Paper-reported numbers are stored as static reference data and rendered only under "Reported in base paper".
+`docs/deployment.md` (operations), `docs/api.md` (endpoints), `docs/methodology.md` (ML method and adaptations), `docs/paper-analysis.md` (what the paper says), `docs/production-audit.md` and `docs/production-completion-report.md` (readiness).

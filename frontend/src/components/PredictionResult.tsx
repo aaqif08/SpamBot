@@ -2,8 +2,8 @@ import { Bot, Gauge, Sparkles, UserRound } from "lucide-react";
 import { useState } from "react";
 
 import { LimeChart, ProbabilityBars, ShapContributionChart, ShapWaterfall } from "@/components/charts/explain";
-import { Badge, Card, DemoBanner, Notice, PredictionBadge, RiskBadge, Table, Tabs, Td, Th, riskColor } from "@/components/ui";
-import type { PredictResponse } from "@/types/api";
+import { Badge, Card, Notice, PredictionBadge, RiskBadge, Table, Tabs, Td, Th, riskColor } from "@/components/ui";
+import type { AnalysisResponse } from "@/types/api";
 import { featureLabel, groupLabel, num, pct, signed } from "@/utils/format";
 
 function RiskMeter({ score, band }: { score: number; band: string }) {
@@ -27,7 +27,7 @@ function RiskMeter({ score, band }: { score: number; band: string }) {
   );
 }
 
-export function PredictionResult({ result }: { result: PredictResponse }) {
+export function PredictionResult({ result }: { result: AnalysisResponse }) {
   const [shapView, setShapView] = useState<"bars" | "waterfall">("bars");
   const isBot = result.prediction === "BOT";
   const shap = result.shap_explanation;
@@ -35,17 +35,15 @@ export function PredictionResult({ result }: { result: PredictResponse }) {
 
   return (
     <div className="space-y-4 animate-fade-in">
-      {result.is_demo && <DemoBanner compact text="This prediction involves demonstration data: a hand-written sample account and/or a model trained on synthetic data. It is not an observation from a real social network." />}
-
       {/* Prediction / confidence / risk */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card title="Model prediction" subtitle={`${result.model.name} · ${result.model.n_features} features`}>
+        <Card title="Model classification" subtitle={`${result.model.name} v${result.model.version} · inference ${result.inference_ms.toFixed(0)} ms · ${new Date(result.created_at).toLocaleString()}`}>
           <div className="flex items-center gap-3">
             <span className="rounded-xl p-3" style={{ background: isBot ? "var(--bot-soft)" : "var(--human-soft)" }}>
               {isBot ? <Bot className="h-6 w-6" style={{ color: "var(--bot)" }} aria-hidden /> : <UserRound className="h-6 w-6" style={{ color: "var(--human)" }} aria-hidden />}
             </span>
             <div>
-              <div className="text-2xl font-semibold text-ink">{isBot ? "BOT / spambot-like" : "HUMAN / legitimate-like"}</div>
+              <div className="text-2xl font-semibold text-ink">{isBot ? "Classified as BOT" : "Classified as HUMAN"}</div>
               <div className="mt-1 flex items-center gap-2">
                 <PredictionBadge label={result.prediction} />
                 <span className="text-xs text-ink-3">for {result.account_identifier}</span>
@@ -189,7 +187,7 @@ export function PredictionResult({ result }: { result: PredictResponse }) {
             ))}
           </ul>
         </Card>
-        <Card title="Feature vector" subtitle={`${Object.values(result.feature_groups).reduce((a, g) => a + Object.keys(g).length, 0)} of the paper's 31 features are used by ${result.model.name}${result.model.n_features < 31 ? " (features that were constant in its training data were dropped; see Evaluation)" : ""}, grouped as in Table 4`}>
+        <Card title="Feature vector" subtitle={`${Object.values(result.feature_groups).reduce((a, g) => a + Object.keys(g).length, 0)} features used by ${result.model.name} v${result.model.version}, grouped as in the research paper (Table 4)`}>
           <div className="scrollbar-thin max-h-[380px] space-y-3 overflow-y-auto pr-1">
             {Object.entries(result.feature_groups).map(([g, feats]) => (
               <div key={g}>

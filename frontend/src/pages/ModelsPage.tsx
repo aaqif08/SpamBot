@@ -1,157 +1,100 @@
-import { Boxes, CheckCircle2, Trash2 } from "lucide-react";
+import { Boxes, CheckCircle2, FlaskConical, Trash2, XCircle } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { MetricComparisonChart } from "@/components/charts/basic";
 import { COLORS } from "@/components/charts/common";
-import { Badge, Button, Card, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton, SourceTag, Table, Td, Th } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, ErrorState, PageHeader, SourceTag, StatusBadge, Table, Td, Th } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/Dialog";
 import { useAction, useApi } from "@/hooks/useApi";
+import { useAuth } from "@/hooks/useAuth";
 import { api } from "@/services/api";
-import type { MetricSet } from "@/types/api";
+import type { ModelPublic } from "@/types/api";
 import { algorithmLabel, dateTime, num, seconds } from "@/utils/format";
 
-type MetricKey = keyof MetricSet;
-const METRICS: { key: MetricKey; label: string }[] = [
-  { key: "accuracy", label: "Accuracy" },
-  { key: "precision", label: "Precision" },
-  { key: "recall", label: "Recall" },
-  { key: "f1", label: "F1" },
-  { key: "roc_auc", label: "ROC-AUC" },
-];
-
 export function ModelsPage() {
-  const { data, loading, error, reload } = useApi(() => api.models(), []);
-  const [metric, setMetric] = useState<MetricKey>("f1");
-  const [paperDataset, setPaperDataset] = useState<"cresci-15" | "cresci-17">("cresci-15");
-  const activate = useAction(useCallback((id: string) => api.activateModel(id), []));
-  const remove = useAction(useCallback((id: string) => api.deleteModel(id), []));
+  const { hasRole } = useAuth();
+  const isAdmin = hasRole("ADMIN");
+  const list = useApi(() => api.models(), []);
+  const research = useApi(() => api.research(), []);
+  const [confirm, setConfirm] = useState<{ kind: "activate" | "deprecate" | "delete"; model: ModelPublic } | null>(null);
+  const act = useAction(useCallback(async (kind: "activate" | "deprecate" | "delete", id: string) => {
+    if (kind === "activate") return api.activateModel(id);
+    if (kind === "deprecate") return api.deprecateModel(id);
+    return api.deleteModel(id);
+  }, []));
 
-  if (loading && !data) return <div className="space-y-4"><PageHeader title="Models" /><Skeleton className="h-64" /></div>;
-  if (error || !data) return <div className="space-y-4"><PageHeader title="Models" /><ErrorState message={error ?? ""} onRetry={reload} /></div>;
-
-  const ours = data.models;
-  const best = ours.length ? ours.reduce((a, b) => ((b.metrics.holdout[metric] ?? -1) > (a.metrics.holdout[metric] ?? -1) ? b : a)) : null;
-  const paperRows = data.paper_reported.datasets[paperDataset].results;
-  const chartData = data.supported_algorithms.map((a) => {
-    const paper = paperRows.find((r) => r.algorithm === a.key);
-    const mine = ours
-      .filter((m) => m.algorithm === a.key && !m.is_demo && m.dataset_name.toLowerCase().startsWith(paperDataset))
-      .sort((x, y) => (y.metrics.holdout[metric] ?? 0) - (x.metrics.holdout[metric] ?? 0))[0];
-    const demo = ours.filter((m) => m.algorithm === a.key && m.is_demo).sort((x, y) => (y.metrics.holdout[metric] ?? 0) - (x.metrics.holdout[metric] ?? 0))[0];
-    return { name: a.display_name, paper: paper?.[metric] ?? null, ours: mine?.metrics.holdout[metric] ?? null, demo: demo?.metrics.holdout[metric] ?? null };
-  });
+  const models = list.data?.models ?? [];
+  const comparison = models.filter((m) => m.test_metrics?.accuracy != null).map((m) => ({ name: `${m.name} v${m.version}`, accuracy: m.test_metrics?.accuracy ?? null, f1: m.test_metrics?.f1 ?? null, roc_auc: m.test_metrics?.roc_auc ?? null }));
+  const paper = research.data?.paper_reported;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Models" description="All nine classifiers from the base paper are supported. Measured results (this implementation) and paper-reported results are shown side by side but never merged." />
+      <PageHeader title="Models" description="Model versions trained in your organization. Exactly one model can be in production; analyses use it unless another READY model is chosen explicitly." actions={hasRole("ADMIN", "ANALYST") && <Link to="/training"><Button icon={FlaskConical}>Train a model</Button></Link>} />
+      <ConfirmDialog
+        open={!!confirm}
+        title={confirm?.kind === "activate" ? `Promote ${confirm.model.name} v${confirm.model.version} to production?` : confirm?.kind === "deprecate" ? `Deprecate ${confirm?.model.name} v${confirm?.model.version}?` : `Delete ${confirm?.model.name} v${confirm?.model.version}?`}
+        description={confirm?.kind === "activate" ? "Artefact checksums are verified first. The current production model (if any) is set back to READY." : confirm?.kind === "deprecate" ? "Deprecated models cannot be used for new analyses; stored predictions keep referencing them." : "Artefacts are removed from storage. Stored predictions keep the model name but the evaluation history for this model is deleted. Production models cannot be deleted."}
+        confirmLabel={confirm?.kind === "activate" ? "Promote" : confirm?.kind === "deprecate" ? "Deprecate" : "Delete"}
+        destructive={confirm?.kind !== "activate"}
+        loading={act.loading}
+        onCancel={() => setConfirm(null)}
+        onConfirm={async () => { if (confirm) { await act.run(confirm.kind, confirm.model.id); setConfirm(null); list.reload(); } }}
+      />
+      {act.error && <ErrorState title="Action failed" message={act.error} />}
 
-      <Card title="Supported classifiers" subtitle="Availability in this environment">
-        <div className="flex flex-wrap gap-2">
-          {data.supported_algorithms.map((a) => (
-            <Badge key={a.key} tone={a.available ? "good" : "critical"} dot={a.available ? "var(--status-good)" : "var(--status-critical)"}>
-              {a.display_name} · {a.family}{a.supports_tree_shap ? " · TreeSHAP" : " · KernelSHAP"}
-            </Badge>
-          ))}
-        </div>
-      </Card>
-
-      <Card
-        title="Trained models — our experimental results"
-        subtitle="Hold-out metrics on each model's own stratified test split; CV means in the Evaluation page"
-        actions={<SourceTag kind="ours" />}
-      >
-        {ours.length === 0 ? (
-          <EmptyState icon={Boxes} title="No trained models" description="Run the training pipeline to populate this table." action={<Link to="/training"><Button>Open training</Button></Link>} />
-        ) : (
-          <>
-            {activate.error && <ErrorState message={activate.error} />}
-            {remove.error && <ErrorState message={remove.error} />}
-            <Table>
-              <thead>
-                <tr>
-                  <Th>Model</Th>
-                  <Th>Dataset</Th>
-                  {METRICS.map((m) => <Th key={m.key} align="right">{m.label}</Th>)}
-                  <Th align="right">Training time</Th>
-                  <Th>Trained</Th>
-                  <Th></Th>
-                </tr>
-              </thead>
-              <tbody>
-                {ours.map((m) => (
-                  <tr key={m.id} className={m.is_active ? "bg-accent-soft/40" : ""}>
-                    <Td>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{m.name}</span>
-                        {m.is_active && <Badge tone="accent">active</Badge>}
-                        {m.is_demo && <Badge tone="demo">demo</Badge>}
-                        {best && best.id === m.id && ours.length > 1 && <Badge tone="neutral">highest {METRICS.find((x) => x.key === metric)?.label} in this experiment</Badge>}
-                      </div>
-                      <div className="text-[11px] text-ink-3">{m.id}</div>
-                    </Td>
-                    <Td className="text-xs">{m.dataset_name}</Td>
-                    {METRICS.map((k) => <Td key={k.key} align="right" mono>{num(m.metrics.holdout[k.key], 3)}</Td>)}
-                    <Td align="right" mono>{seconds(m.training_seconds)}</Td>
-                    <Td className="text-xs text-ink-2">{dateTime(m.trained_at)}</Td>
-                    <Td>
-                      <div className="flex gap-1">
-                        {!m.is_active && <Button size="sm" variant="secondary" icon={CheckCircle2} loading={activate.loading} onClick={async () => { await activate.run(m.id); reload(); }}>Activate</Button>}
-                        <Button size="sm" variant="ghost" icon={Trash2} aria-label="Delete model" onClick={async () => { if (window.confirm(`Delete model ${m.id}?`)) { await remove.run(m.id); reload(); } }} />
-                      </div>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </Table>
-          </>
+      <Card title="Registered models" subtitle="Hold-out metrics come from each model's own stratified test split." padded={false} actions={<SourceTag kind="ours" />}>
+        {list.error && <div className="p-4"><ErrorState message={list.error} onRetry={list.reload} /></div>}
+        {list.data && models.length === 0 && <div className="p-4"><EmptyState icon={Boxes} title="No models trained yet" description="Train a model on a labelled dataset; it appears here with its metrics and can then be promoted to production." action={hasRole("ADMIN", "ANALYST") ? <Link to="/training"><Button>Go to Training</Button></Link> : undefined} /></div>}
+        {models.length > 0 && (
+          <Table className="rounded-none border-0">
+            <thead><tr><Th>Model</Th><Th>Status</Th><Th>Algorithm</Th><Th>Dataset</Th><Th align="right">Accuracy</Th><Th align="right">F1</Th><Th align="right">ROC-AUC</Th><Th align="right">CV F1</Th><Th align="right">Train time</Th><Th>Trained</Th><Th></Th></tr></thead>
+            <tbody>{models.map((m) => (
+              <tr key={m.id} className={m.is_production ? "bg-accent-soft/40" : ""}>
+                <Td><div className="font-medium text-ink">{m.name} <span className="text-ink-3">v{m.version}</span></div><div className="text-[11px] text-ink-3">{m.n_features} features · {m.feature_version}{m.notes ? ` · ${m.notes}` : ""}</div></Td>
+                <Td><StatusBadge status={m.status} /></Td><Td className="text-xs">{algorithmLabel(m.algorithm)}</Td><Td className="text-xs">{m.dataset_name || "—"}</Td>
+                <Td align="right" mono>{num(m.test_metrics?.accuracy, 3)}</Td><Td align="right" mono>{num(m.test_metrics?.f1, 3)}</Td><Td align="right" mono>{num(m.test_metrics?.roc_auc, 3)}</Td>
+                <Td align="right" mono>{m.validation_metrics?.mean?.f1 != null ? `${num(m.validation_metrics.mean.f1, 3)} ± ${num(m.validation_metrics.std?.f1, 3)}` : "—"}</Td>
+                <Td align="right" mono>{seconds(m.training_seconds)}</Td><Td className="text-xs text-ink-2">{dateTime(m.trained_at)}</Td>
+                <Td>
+                  <div className="flex justify-end gap-1">
+                    <Link to={`/evaluation?model=${m.id}`}><Button size="sm" variant="ghost">Details</Button></Link>
+                    {isAdmin && m.status === "READY" && <Button size="sm" variant="secondary" icon={CheckCircle2} onClick={() => setConfirm({ kind: "activate", model: m })}>Promote</Button>}
+                    {isAdmin && (m.status === "READY" || m.status === "PRODUCTION") && <Button size="sm" variant="ghost" icon={XCircle} onClick={() => setConfirm({ kind: "deprecate", model: m })}>Deprecate</Button>}
+                    {isAdmin && m.status !== "PRODUCTION" && m.status !== "TRAINING" && <Button size="sm" variant="ghost" icon={Trash2} aria-label="Delete model" onClick={() => setConfirm({ kind: "delete", model: m })} />}
+                  </div>
+                </Td>
+              </tr>
+            ))}</tbody>
+          </Table>
         )}
       </Card>
 
-      <Card
-        title="Comparison chart"
-        subtitle="Per algorithm: paper-reported value (5-fold CV, 31 features incl. tweet-derived) vs. our best hold-out value on the same Cresci dataset (user-level mirror, tweet-derived features unavailable)"
-        actions={
-          <div className="flex gap-2">
-            <Select value={metric} onChange={(e) => setMetric(e.target.value as MetricKey)} className="h-8 w-36 text-xs">
-              {METRICS.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-            </Select>
-            <Select value={paperDataset} onChange={(e) => setPaperDataset(e.target.value as "cresci-15" | "cresci-17")} className="h-8 w-36 text-xs">
-              <option value="cresci-15">Paper: Cresci-15</option>
-              <option value="cresci-17">Paper: Cresci-17</option>
-            </Select>
-          </div>
-        }
-      >
-        <MetricComparisonChart
-          data={chartData}
-          series={[
-            { key: "paper", label: `Reported in base paper (${paperDataset})`, color: COLORS.series[0] },
-            { key: "ours", label: `Reproduced by this implementation (${paperDataset}, user-level data)`, color: COLORS.series[1] },
-            { key: "demo", label: "This implementation (DEMO data)", color: COLORS.series[2] },
-          ]}
-          height={300}
-        />
-        <Notice>
-          Paper values come from Tables 5–6 of the base paper (5-fold CV). Values measured here come from a hold-out split on whichever dataset the model was trained on and are directly comparable only when that dataset is the same Cresci dataset.
-        </Notice>
-      </Card>
+      {comparison.length > 1 && (
+        <Card title="Hold-out comparison" subtitle="Your trained versions side by side" actions={<SourceTag kind="ours" />}>
+          <MetricComparisonChart data={comparison} series={[{ key: "accuracy", label: "Accuracy", color: COLORS.series[0] }, { key: "f1", label: "F1", color: COLORS.series[1] }, { key: "roc_auc", label: "ROC-AUC", color: COLORS.series[2] }]} />
+        </Card>
+      )}
 
-      <Card title={`Results reported in base paper — ${paperDataset.toUpperCase()} (${data.paper_reported.datasets[paperDataset].table})`} subtitle={data.paper_reported.datasets[paperDataset].highlight} actions={<SourceTag kind="paper" />}>
-        <Table>
-          <thead>
-            <tr><Th>Classifier</Th>{METRICS.map((m) => <Th key={m.key} align="right">{m.label}</Th>)}</tr>
-          </thead>
-          <tbody>
-            {paperRows.map((r) => (
-              <tr key={r.algorithm}>
-                <Td>{algorithmLabel(r.algorithm)}</Td>
-                {METRICS.map((m) => <Td key={m.key} align="right" mono>{num(r[m.key], 3)}</Td>)}
-              </tr>
+      {list.data && (
+        <Card title="Supported algorithms" subtitle="Nine classifiers from the reference methodology; availability depends on installed libraries on the server.">
+          <div className="flex flex-wrap gap-2">{list.data.supported_algorithms.map((a) => <Badge key={a.key} tone={a.available ? "good" : "neutral"}>{a.display_name}{a.supports_tree_shap ? " · TreeSHAP" : ""}{!a.available ? ` (${a.unavailable_reason})` : ""}</Badge>)}</div>
+        </Card>
+      )}
+
+      {paper && (
+        <Card title="Results reported in the reference paper" subtitle={`${paper.citation.authors[0]} et al., ${paper.citation.venue} ${paper.citation.year} · DOI ${paper.citation.doi}. These numbers are transcribed from the publication and are not measurements of your models.`} actions={<SourceTag kind="paper" />}>
+          <div className="grid gap-4 lg:grid-cols-2">
+            {Object.entries(paper.datasets).map(([ds, block]) => (
+              <div key={ds}>
+                <h3 className="mb-1 text-sm font-medium text-ink">{ds} <span className="text-xs text-ink-3">({block.table})</span></h3>
+                <Table compact><thead><tr><Th>Algorithm</Th><Th align="right">Acc</Th><Th align="right">Prec</Th><Th align="right">Rec</Th><Th align="right">F1</Th><Th align="right">AUC</Th></tr></thead>
+                  <tbody>{block.results.map((r) => <tr key={r.algorithm} className={r.algorithm === block.highlight ? "font-medium" : ""}><Td>{algorithmLabel(r.algorithm)}</Td><Td align="right" mono>{num(r.accuracy, 3)}</Td><Td align="right" mono>{num(r.precision, 3)}</Td><Td align="right" mono>{num(r.recall, 3)}</Td><Td align="right" mono>{num(r.f1, 3)}</Td><Td align="right" mono>{num(r.roc_auc, 3)}</Td></tr>)}</tbody></Table>
+              </div>
             ))}
-          </tbody>
-        </Table>
-        <p className="mt-2 text-[11px] text-ink-3">Source: {data.paper_reported.citation.title}, {data.paper_reported.citation.venue}, DOI {data.paper_reported.citation.doi}. Not measured by this implementation.</p>
-      </Card>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

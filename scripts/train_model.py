@@ -1,129 +1,112 @@
 #!/usr/bin/env python
-"""Train one (or all) classifiers on a registered dataset, a Cresci dataset or a CSV.
+"""Train classifiers for an organisation from the command line (same pipeline as the UI).
 
-Examples
---------
-    python scripts/train_model.py --dataset demo --algorithm lightgbm
-    python scripts/train_model.py --dataset cresci-15 --all
-    python scripts/train_model.py --csv path/to/labelled.csv --algorithm xgboost --feature-selection --top-k 20
+    python scripts/train_model.py --email admin@example.com --benchmark cresci-17 --all
+    python scripts/train_model.py --email admin@example.com --benchmark combined --algorithm lightgbm --activate
+    python scripts/train_model.py --email analyst@example.com --csv path/to/labelled.csv --algorithm xgboost
 
-Results are written to backend/models/<model_id>/ and registered in
-backend/models/registry.json and the SQLite ``models`` table. Metrics printed
-here are *measured by this implementation* — never the paper's numbers.
+The user identified by --email must exist (created with `python -m app.cli create-admin`
+or through the Users page); everything is attributed to that user's organisation and
+recorded in the audit log exactly as if done through the API.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
-import _bootstrap  # noqa: F401  (sys.path setup)
+import _bootstrap  # noqa: F401
 
 _bootstrap.init()
 
+from sqlalchemy import func  # noqa: E402
+
 from app.db.database import SessionLocal  # noqa: E402
+from app.db.models import JobType, User  # noqa: E402
+from app.services import handlers  # noqa: E402,F401  (registers job handlers)
 from app.services.dataset_service import DatasetService  # noqa: E402
-from app.services.registry import get_registry  # noqa: E402
-from app.services.training_service import sync_model_records  # noqa: E402
-from ml.datasets import labelled_frame, read_csv_safely  # noqa: E402
-from ml.train import MODEL_ZOO, TrainConfig, train_all_models, train_model  # noqa: E402
+from app.services.jobs import create_job, execute_job  # noqa: E402
+from app.services.model_service import ModelService, model_public  # noqa: E402
+from ml.train import MODEL_ZOO  # noqa: E402
 
 
-def resolve_dataset(args: argparse.Namespace):
+def main() -> int:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--email", required=True, help="Existing user; training is attributed to their organisation")
+    src = p.add_mutually_exclusive_group(required=True)
+    src.add_argument("--csv", help="Labelled CSV to register as a new dataset")
+    src.add_argument("--benchmark", choices=["cresci-15", "cresci-17", "combined"], help="Locally installed Cresci benchmark (scripts/fetch_datasets.py)")
+    src.add_argument("--dataset-id", help="Existing dataset id")
+    p.add_argument("--algorithm", default="lightgbm", choices=sorted(MODEL_ZOO))
+    p.add_argument("--all", action="store_true", help="Train every classifier")
+    p.add_argument("--test-size", type=float, default=0.25)
+    p.add_argument("--cv-folds", type=int, default=5)
+    p.add_argument("--search-iterations", type=int, default=6)
+    p.add_argument("--no-search", action="store_true")
+    p.add_argument("--feature-selection", action="store_true")
+    p.add_argument("--top-k", type=int, default=20)
+    p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--activate", action="store_true", help="Promote the (last) trained model to PRODUCTION")
+    args = p.parse_args()
+
     db = SessionLocal()
-    service = DatasetService(db)
     try:
+        user = db.query(User).filter(func.lower(User.email) == args.email.lower()).first()
+        if user is None:
+            print(f"No user with email {args.email}. Create one with: python -m app.cli create-admin", file=sys.stderr)
+            return 2
+        ds_service = DatasetService(db)
         if args.csv:
             path = Path(args.csv)
             if not path.exists():
-                sys.exit(f"CSV not found: {path}")
-            info = service.save_upload(path.read_bytes(), path.name, name=path.stem)
-            row, df = service.load_frame(info["id"])
-        elif args.dataset == "demo":
-            info = service.create_demo(n=args.demo_size, seed=args.seed)
-            row, df = service.load_frame(info["id"])
-        elif args.dataset in ("cresci-15", "cresci-17"):
-            status = service.cresci_status(args.dataset)
-            if not status["imported"] or args.reimport:
-                print(f"Importing {args.dataset} (this can take a while)…")
-                info = service.import_cresci(args.dataset, progress=lambda m: print("  ", m), use_cache=not args.reimport)
-            else:
-                info = {"id": status["dataset_id"]}
-            row, df = service.load_frame(info["id"])
-        elif args.dataset == "cresci-combined":
-            info = service.create_cresci_combined(progress=lambda m: print("  ", m))
-            row, df = service.load_frame(info["id"])
+                print(f"CSV not found: {path}", file=sys.stderr)
+                return 2
+            ds = ds_service.upload(user, path.read_bytes(), path.name, name=path.stem)
+        elif args.benchmark == "combined":
+            ds = ds_service.combined_benchmark(user)
+        elif args.benchmark:
+            ds = ds_service.import_benchmark(user.id, user.organization_id, args.benchmark, progress=lambda m: print("  ", m))
         else:
-            row, df = service.load_frame(args.dataset)
-        return row, df
+            ds = ds_service.get(user.organization_id, args.dataset_id)
+        version = ds_service.current_version(ds)
+        if not version.has_label:
+            print("Dataset has no label column; training requires labels.", file=sys.stderr)
+            return 2
+        print(f"Dataset: {ds.name} v{version.version} ({version.n_rows:,} rows)")
+
+        models = ModelService(db)
+        algos = list(MODEL_ZOO) if args.all else [args.algorithm]
+        results = []
+        for algo in algos:
+            row = models.new_training_row(user.organization_id, user.id, algo, None)
+            params = {
+                "model_row_id": row.id, "dataset_version_id": version.id, "algorithm": algo, "test_size": args.test_size, "cv_folds": args.cv_folds,
+                "hyperparameter_search": not args.no_search, "search_iterations": args.search_iterations, "feature_selection": args.feature_selection,
+                "feature_selection_top_k": args.top_k, "seed": args.seed, "activate": args.activate and algo == algos[-1], "notes": "trained via scripts/train_model.py",
+            }
+            job = create_job(db, organization_id=user.organization_id, created_by=user.id, job_type=JobType.TRAINING, params=params, target_type="model", target_id=row.id)
+            row.job_id = job.id
+            db.commit()
+            print(f"Training {MODEL_ZOO[algo].display_name} (job {job.id[:8]})")
+            execute_job(job.id)
+            db.expire_all()
+            row = models.get(user.organization_id, row.id)
+            results.append(row)
+        print("\nExperiment reproduced by this implementation (hold-out split):")
+        print(f"{'model':<22}{'status':<12}{'acc':>8}{'prec':>8}{'rec':>8}{'f1':>8}{'auc':>8}")
+        for r in results:
+            m = model_public(r)["test_metrics"]
+            if m:
+                print(f"{r.name:<22}{r.status.value:<12}{m['accuracy']:>8.3f}{m['precision']:>8.3f}{m['recall']:>8.3f}{m['f1']:>8.3f}{(m.get('roc_auc') or 0):>8.3f}")
+            else:
+                print(f"{r.name:<22}{r.status.value:<12}  {r.notes[:60]}")
+        prod = models.production(user.organization_id)
+        print(f"\nProduction model: {prod.name} v{prod.version} ({prod.id})" if prod else "\nNo production model configured (use --activate or the Models page).")
+        return 0
     finally:
         db.close()
-
-
-def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--dataset", default="cresci-17", help="cresci-15 | cresci-17 | cresci-combined | demo | <dataset id>")
-    p.add_argument("--csv", help="Path to a labelled CSV (registered as an upload)")
-    p.add_argument("--algorithm", default="lightgbm", choices=sorted(MODEL_ZOO))
-    p.add_argument("--all", action="store_true", help="Train every classifier in the zoo")
-    p.add_argument("--test-size", type=float, default=0.25)
-    p.add_argument("--cv-folds", type=int, default=5)
-    p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--no-search", action="store_true", help="Disable hyperparameter search")
-    p.add_argument("--search-iterations", type=int, default=6)
-    p.add_argument("--feature-selection", action="store_true", help="SHAP-based feature selection (paper §III-C)")
-    p.add_argument("--top-k", type=int, default=20)
-    p.add_argument("--demo-size", type=int, default=600)
-    p.add_argument("--reimport", action="store_true", help="Rebuild Cresci feature cache")
-    p.add_argument("--no-activate", action="store_true")
-    args = p.parse_args()
-
-    row, df = resolve_dataset(args)
-    X, y = labelled_frame(df)
-    print(f"Dataset: {row.name} ({len(X)} labelled accounts, demo={row.is_demo})")
-
-    base = TrainConfig(
-        algorithm=args.algorithm,
-        test_size=args.test_size,
-        cv_folds=args.cv_folds,
-        seed=args.seed,
-        hyperparameter_search=not args.no_search,
-        search_iterations=args.search_iterations,
-        feature_selection=args.feature_selection,
-        feature_selection_top_k=args.top_k,
-        dataset_id=row.id,
-        dataset_name=row.name,
-        is_demo=bool(row.is_demo),
-        activate=not args.no_activate,
-    )
-    registry = get_registry()
-
-    def progress(stage: str, pct: float, msg: str) -> None:
-        print(f"  [{stage:<19}] {pct:>4.0%}  {msg}")
-
-    if args.all:
-        results = train_all_models(X, y, base, registry, progress=progress)
-    else:
-        results = [train_model(X, y, base, registry, progress=progress)]
-
-    db = SessionLocal()
-    try:
-        sync_model_records(db)
-    finally:
-        db.close()
-
-    print("\nExperiment reproduced by this implementation (hold-out split):")
-    print(f"{'model':<22}{'acc':>8}{'prec':>8}{'rec':>8}{'f1':>8}{'auc':>8}{'time':>9}")
-    for r in results:
-        m = r.entry.metrics["holdout"]
-        print(f"{r.entry.name:<22}{m['accuracy']:>8.3f}{m['precision']:>8.3f}{m['recall']:>8.3f}{m['f1']:>8.3f}{(m['roc_auc'] or float('nan')):>8.3f}{r.entry.training_seconds:>8.1f}s")
-    if row.is_demo:
-        print("\nDEMO DATA — NOT REAL SOCIAL MEDIA DATA. These numbers are not research results.")
-    print(f"\nActive model: {registry.active_id()}")
-    print(json.dumps({"models": [r.model_id for r in results]}))
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

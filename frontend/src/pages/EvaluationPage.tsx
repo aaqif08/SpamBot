@@ -1,129 +1,95 @@
 import { BarChart3 } from "lucide-react";
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 
-import { ClassDistributionChart, ConfusionMatrixView, CvFoldsChart, PrChart, ProbabilityHistogram, RocChart } from "@/components/charts/basic";
-import { Badge, Button, Card, DemoBanner, EmptyState, ErrorState, Notice, PageHeader, Select, Skeleton, SourceTag, Table, Td, Th } from "@/components/ui";
+import { ClassDistributionChart, ConfusionMatrixView, CvFoldsChart, ImportanceChart, PrChart, ProbabilityHistogram, RocChart } from "@/components/charts/basic";
+import { Badge, Card, EmptyState, ErrorState, Field, PageHeader, Select, Skeleton, SourceTag, StatTile, StatusBadge, Table, Td, Th } from "@/components/ui";
 import { useApi } from "@/hooks/useApi";
 import { api } from "@/services/api";
-import { dateTime, featureLabel, num, seconds } from "@/utils/format";
+import type { Evaluation, EvaluationRunPublic, MetricSet } from "@/types/api";
+import { algorithmLabel, dateTime, int, num, seconds } from "@/utils/format";
+
+function MetricTiles({ m }: { m: MetricSet }) {
+  return <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">{(["accuracy", "precision", "recall", "f1", "roc_auc"] as const).map((k) => <div key={k} className="rounded-lg border border-border p-3"><div className="text-[11px] uppercase text-ink-3">{k.replace("_", "-")}</div><div className="text-lg font-semibold tabular-nums text-ink">{num(m[k], 4)}</div></div>)}</div>;
+}
+
+function EvaluationBlock({ e }: { e: Evaluation }) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card title="Confusion matrix"><ConfusionMatrixView cm={e.confusion_matrix} /><p className="mt-2 text-xs text-ink-3">FPR {num(e.confusion_matrix.false_positive_rate)} · FNR {num(e.confusion_matrix.false_negative_rate)} · {int(e.n_positive)} bots / {int(e.n_negative)} humans</p></Card>
+      <Card title="ROC curve"><RocChart roc={e.roc_curve} /></Card>
+      <Card title="Precision–recall curve"><PrChart pr={e.pr_curve} /></Card>
+      <Card title="Estimated bot probability distribution"><ProbabilityHistogram bins={e.probability_histogram} /></Card>
+    </div>
+  );
+}
 
 export function EvaluationPage() {
+  const [params, setParams] = useSearchParams();
   const models = useApi(() => api.models(), []);
-  const [modelId, setModelId] = useState<string>("active");
-  const ev = useApi(() => api.evaluation(modelId), [modelId], true);
+  const [modelId, setModelId] = useState(params.get("model") ?? "");
+  useEffect(() => { if (!modelId && models.data) { const id = models.data.production_model_id ?? models.data.models.find((m) => m.status !== "TRAINING" && m.status !== "FAILED")?.id ?? ""; if (id) setModelId(id); } }, [models.data, modelId]);
+  useEffect(() => { if (modelId && params.get("model") !== modelId) setParams({ model: modelId }, { replace: true }); }, [modelId, params, setParams]);
+  const ev = useApi(() => api.modelEvaluation(modelId), [modelId], !!modelId);
+  const [runId, setRunId] = useState<string>("");
 
-  const header = (
-    <PageHeader
-      title="Model Evaluation"
-      description="Hold-out metrics, confusion matrix, ROC and precision–recall curves and cross-validation folds for a trained model — all measured by this implementation."
-      actions={
-        <Select value={modelId} onChange={(e) => setModelId(e.target.value)} className="w-72">
-          <option value="active">Active model</option>
-          {models.data?.models.map((m) => <option key={m.id} value={m.id}>{m.name} · {m.dataset_name}{m.is_demo ? " (demo)" : ""}</option>)}
-        </Select>
-      }
-    />
-  );
-
-  if (ev.loading && !ev.data) return <div className="space-y-4">{header}<Skeleton className="h-72" /></div>;
-  if (ev.error || !ev.data) {
-    return (
-      <div className="space-y-4">
-        {header}
-        {ev.status === 404 ? (
-          <EmptyState icon={BarChart3} title="No trained model available" description="Run the training pipeline to populate evaluation results." action={<Link to="/training"><Button>Open training</Button></Link>} />
-        ) : (
-          <ErrorState message={ev.error ?? ""} onRetry={ev.reload} />
-        )}
-      </div>
-    );
-  }
-
-  const d = ev.data;
-  const m = d.metrics;
-  const hold = m.holdout;
-  const cv = m.cross_validation;
-  const metricKeys = ["accuracy", "precision", "recall", "f1", "roc_auc"] as const;
+  const runs = ev.data?.evaluations ?? [];
+  const holdout = runs.find((r) => r.kind === "holdout");
+  const cv = runs.find((r) => r.kind === "cross_validation");
+  const datasetRuns = runs.filter((r) => r.kind === "dataset");
+  const selectedRun: EvaluationRunPublic | undefined = runId ? runs.find((r) => r.id === runId) : holdout;
+  const train = holdout?.details;
 
   return (
     <div className="space-y-6">
-      {header}
-      {d.is_demo && <DemoBanner text="This model was trained and evaluated on synthetic demo data; the metrics below are not research results." />}
+      <PageHeader title="Evaluation" description="Stored evaluation runs for each model: the stratified hold-out split, cross-validation folds and any later evaluations on labelled datasets. Nothing here is estimated — every figure was computed on real rows and persisted." actions={<Field label="Model" className="min-w-[18rem]"><Select value={modelId} onChange={(e) => { setModelId(e.target.value); setRunId(""); }}>{!models.data?.models.length && <option value="">No models</option>}{models.data?.models.filter((m) => m.status !== "TRAINING").map((m) => <option key={m.id} value={m.id}>{m.name} v{m.version} · {m.status.toLowerCase()}</option>)}</Select></Field>} />
 
-      <Card title="Experiment setup" actions={<SourceTag kind="ours" />}>
-        <dl className="grid gap-3 text-sm sm:grid-cols-3 lg:grid-cols-6">
-          {[
-            ["Dataset", d.dataset.name],
-            ["Model", `${d.model.name} (${d.model.algorithm})`],
-            ["Feature version", d.feature_metadata.feature_version],
-            ["Number of features", String(d.feature_metadata.n_features)],
-            ["Train size", m.split.train_size.toLocaleString()],
-            ["Test size", `${m.split.test_size_n.toLocaleString()} (${Math.round(m.split.test_size * 100)}%)`],
-            ["CV folds", `${m.split.cv_folds} (stratified)`],
-            ["Seed", String(m.split.seed)],
-            ["Hyperparameter search", m.hyperparameter_search ? "randomised, F1-scored" : "off"],
-            ["Training time", seconds(m.training_seconds)],
-            ["Trained", dateTime(d.model.trained_at)],
-            ["Feature selection", d.feature_metadata.feature_selection.enabled ? `SHAP top-${d.feature_metadata.feature_selection.top_k}` : `off (${d.feature_metadata.n_features} of 31 used)`],
-          ].map(([k, v]) => (
-            <div key={k}><dt className="text-[11px] text-ink-3">{k}</dt><dd className="truncate font-medium text-ink" title={v}>{v}</dd></div>
-          ))}
-        </dl>
-      </Card>
+      {models.data && models.data.models.length === 0 && <Card><EmptyState icon={BarChart3} title="No models to evaluate" description="Train a model first; its hold-out and cross-validation results will be stored here." action={<Link to="/training" className="text-sm underline">Go to Training</Link>} /></Card>}
+      {ev.error && <ErrorState message={ev.error} onRetry={ev.reload} />}
+      {ev.loading && !ev.data && <div className="grid gap-4 sm:grid-cols-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        {metricKeys.map((k) => (
-          <div key={k} className="rounded-xl border border-border bg-surface p-4">
-            <div className="text-[11px] uppercase tracking-wide text-ink-3">{k.replace("_", "-")}</div>
-            <div className="text-2xl font-semibold tabular-nums text-ink">{num(hold.metrics[k], 3)}</div>
-            <div className="text-[11px] text-ink-3">hold-out · CV {num(cv.summary[k].mean, 3)} ± {num(cv.summary[k].std, 3)} · train {num(m.train[k], 3)}</div>
+      {ev.data && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile label="Model" value={`${ev.data.model.name} v${ev.data.model.version}`} sub={<span className="flex items-center gap-1">{algorithmLabel(ev.data.model.algorithm)} <StatusBadge status={ev.data.model.status} /></span>} />
+            <StatTile label="Dataset" value={ev.data.model.dataset_name || "—"} sub={train?.split ? `${int(train.split.train_size)} train / ${int(train.split.test_size_n)} test (stratified)` : undefined} />
+            <StatTile label="Features" value={ev.data.feature_metadata.n_features} sub={ev.data.feature_metadata.dropped_constant_features?.length ? `${ev.data.feature_metadata.dropped_constant_features.length} constant features dropped` : ev.data.feature_metadata.feature_selection.enabled ? `top-${ev.data.feature_metadata.feature_selection.top_k} selected` : "all 31 features"} />
+            <StatTile label="Training" value={seconds(ev.data.model.training_seconds)} sub={train?.hyperparameter_search ? "with randomized search" : "default hyper-parameters"} />
           </div>
-        ))}
-      </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card title="Confusion matrix (hold-out)"><ConfusionMatrixView cm={hold.confusion_matrix} /></Card>
-        <Card title="ROC curve"><RocChart roc={hold.roc_curve} /></Card>
-        <Card title="Precision–recall curve"><PrChart pr={hold.pr_curve} /></Card>
-      </div>
+          {runs.length === 0 && <Card><EmptyState title="No evaluation runs stored for this model" /></Card>}
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title={`${cv.n_folds}-fold cross-validation (training split)`} subtitle={`mean fit time ${seconds(cv.fit_time_mean)} per fold`}>
-          <CvFoldsChart folds={cv.folds} />
-          <Table className="mt-3">
-            <thead><tr><Th>Fold</Th>{metricKeys.map((k) => <Th key={k} align="right">{k.replace("_", "-")}</Th>)}</tr></thead>
-            <tbody>
-              {cv.folds.map((f, i) => <tr key={i}><Td>Fold {i + 1}</Td>{metricKeys.map((k) => <Td key={k} align="right" mono>{num(f[k], 3)}</Td>)}</tr>)}
-              <tr className="bg-surface-2"><Td className="font-medium">Mean ± std</Td>{metricKeys.map((k) => <Td key={k} align="right" mono>{num(cv.summary[k].mean, 3)} ± {num(cv.summary[k].std, 3)}</Td>)}</tr>
-            </tbody>
-          </Table>
-        </Card>
-        <div className="space-y-4">
-          <Card title="Predicted probability distribution (hold-out)"><ProbabilityHistogram bins={hold.probability_histogram} height={200} /></Card>
-          <Card title="Class distribution (stratified split)">
-            <ClassDistributionChart rows={[{ name: "Train", ...m.class_distribution.train }, { name: "Test", ...m.class_distribution.test }]} height={130} />
-          </Card>
-        </div>
-      </div>
+          {runs.length > 0 && (
+            <Card title="Evaluation runs" padded={false} actions={<SourceTag kind="ours" />}>
+              <Table className="rounded-none border-0" compact>
+                <thead><tr><Th>Kind</Th><Th>Dataset</Th><Th align="right">Samples</Th><Th align="right">Acc</Th><Th align="right">Prec</Th><Th align="right">Rec</Th><Th align="right">F1</Th><Th align="right">AUC</Th><Th>Date</Th></tr></thead>
+                <tbody>{runs.map((r) => <tr key={r.id} className={`cursor-pointer hover:bg-surface-2 ${selectedRun?.id === r.id ? "bg-accent-soft" : ""}`} onClick={() => setRunId(r.id)}><Td><Badge tone={r.kind === "holdout" ? "good" : "neutral"}>{r.kind.replace("_", " ")}</Badge></Td><Td className="text-xs">{r.details.dataset_name ?? ev.data?.model.dataset_name ?? "—"}</Td><Td align="right" mono>{int(r.n_samples)}</Td><Td align="right" mono>{num(r.metrics.accuracy)}</Td><Td align="right" mono>{num(r.metrics.precision)}</Td><Td align="right" mono>{num(r.metrics.recall)}</Td><Td align="right" mono>{num(r.metrics.f1)}</Td><Td align="right" mono>{num(r.metrics.roc_auc)}</Td><Td className="text-xs">{dateTime(r.created_at)}</Td></tr>)}</tbody>
+              </Table>
+            </Card>
+          )}
 
-      {d.feature_metadata.dropped_constant_features && d.feature_metadata.dropped_constant_features.length > 0 && (
-        <Notice tone="warning">
-          {d.feature_metadata.dropped_constant_features.length} of the 31 paper features were constant in the training data and were dropped:{" "}
-          {d.feature_metadata.dropped_constant_features.map(featureLabel).join(", ")}. For Cresci this happens when only the user-level files (users.csv) are available; the tweet files (tweets.csv) are distributed by the dataset authors on request. Add them next to users.csv and re-import to enable the tweet-derived features.
-        </Notice>
+          {selectedRun && (
+            <>
+              <Card title={selectedRun.kind === "holdout" ? "Hold-out test split" : selectedRun.kind === "cross_validation" ? "Cross-validation (mean over folds)" : `Dataset evaluation · ${selectedRun.details.dataset_name ?? ""}`} subtitle={`${int(selectedRun.n_samples)} accounts · ${dateTime(selectedRun.created_at)}`} actions={<SourceTag kind="ours" />}>
+                <MetricTiles m={selectedRun.metrics} />
+              </Card>
+              {selectedRun.kind === "holdout" && selectedRun.details.holdout && <EvaluationBlock e={selectedRun.details.holdout} />}
+              {selectedRun.kind === "dataset" && selectedRun.details.holdout && <EvaluationBlock e={selectedRun.details.holdout} />}
+              {selectedRun.kind === "cross_validation" && selectedRun.details.cross_validation && <Card title="Per-fold metrics"><CvFoldsChart folds={selectedRun.details.cross_validation.folds} /></Card>}
+            </>
+          )}
+
+          {train && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {cv?.details.cross_validation && <Card title="Cross-validation folds" subtitle={`${cv.details.cross_validation.n_folds}-fold stratified · mean fit ${seconds(cv.details.cross_validation.fit_time_mean)}`}><CvFoldsChart folds={cv.details.cross_validation.folds} /><Table compact className="mt-3"><thead><tr><Th>Metric</Th><Th align="right">Mean</Th><Th align="right">Std</Th></tr></thead><tbody>{Object.entries(cv.details.cross_validation.summary).map(([k, v]) => <tr key={k}><Td>{k}</Td><Td align="right" mono>{num(v.mean, 4)}</Td><Td align="right" mono>{num(v.std, 4)}</Td></tr>)}</tbody></Table></Card>}
+              {train.class_distribution && <Card title="Class distribution of the split"><ClassDistributionChart rows={[{ name: "train", human: train.class_distribution.train.human, bot: train.class_distribution.train.bot }, { name: "test", human: train.class_distribution.test.human, bot: train.class_distribution.test.bot }]} />{train.train && <p className="mt-2 text-xs text-ink-3">Training-set F1 {num(train.train.f1)} vs hold-out F1 {num(selectedRun?.metrics.f1 ?? holdout?.metrics.f1)} — a large gap indicates over-fitting.</p>}</Card>}
+              {train.best_params && Object.keys(train.best_params).length > 0 && <Card title="Selected hyper-parameters"><Table compact><tbody>{Object.entries(train.best_params).map(([k, v]) => <tr key={k}><Td mono>{k}</Td><Td mono>{String(v)}</Td></tr>)}</tbody></Table></Card>}
+              <Card title="Feature importance (mean |SHAP|)" subtitle="Computed on a subset of training rows after fitting">{ev.data.feature_importance.length ? <ImportanceChart rows={ev.data.feature_importance} /> : <EmptyState title="No SHAP analysis stored" />}</Card>
+            </div>
+          )}
+          {datasetRuns.length === 0 && <p className="text-xs text-ink-3">Evaluate this model on another labelled dataset from the <Link to="/datasets" className="underline">Datasets</Link> page to add a run here.</p>}
+        </>
       )}
-      <Card title="Feature set used by this model" subtitle={`${d.feature_metadata.scaling} · ${d.feature_metadata.imputation}`}>
-        <div className="flex flex-wrap gap-1.5">
-          {d.feature_metadata.feature_names.map((f) => <Badge key={f}>{featureLabel(f)}</Badge>)}
-        </div>
-        {d.feature_metadata.feature_selection.enabled && d.feature_metadata.feature_selection.dropped?.length ? (
-          <p className="mt-3 text-xs text-ink-2">Dropped by SHAP selection: {d.feature_metadata.feature_selection.dropped.map(featureLabel).join(", ")}</p>
-        ) : null}
-        {Object.keys(m.best_params).length > 0 && (
-          <p className="mt-3 text-xs text-ink-2">Best hyperparameters: <code className="font-mono">{JSON.stringify(m.best_params)}</code></p>
-        )}
-      </Card>
     </div>
   );
 }

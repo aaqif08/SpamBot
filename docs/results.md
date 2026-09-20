@@ -1,6 +1,6 @@
 # Experimental results — reproduced by this implementation
 
-Generated 2026-09-19 04:41 UTC by `scripts/report_results.py` from `backend/models/registry.json`.
+Generated 2026-09-19 04:41 UTC by `scripts/report_results.py` (development run on the public Cresci mirrors, before the multi-tenant platform conversion; the script now reads models from the database of the organization given with `--email`). These numbers are a record of what the method achieved on that data with the listed configuration — they are not shown in the application unless the same models are trained there.
 
 All numbers in sections 1–2 were **measured by this implementation** on the real Cresci datasets (user-level mirror, see `backend/data/datasets/PROVENANCE.md`). They are **not** the paper's numbers; the paper's numbers appear only in section 3.
 

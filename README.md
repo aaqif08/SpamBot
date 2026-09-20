@@ -1,240 +1,136 @@
-# BotShield AI — Interpretable AI-Based Social Bot and Fake Follower Detection System
+# BotShield AI — Interpretable Social Bot & Fake Follower Detection
 
-An end-to-end web application that implements the methodology of the base paper
+A production web platform that implements the methodology of
 
 > D. Javed, N. Z. Jhanjhi, N. A. Khan, S. K. Ray, A. Al-Dhaqm, V. R. Kebande,
 > **"Identification of Spambots and Fake Followers on Social Network via Interpretable AI-Based Machine Learning"**,
 > IEEE Access, vol. 13, 2025. DOI [10.1109/ACCESS.2025.3551993](https://doi.org/10.1109/ACCESS.2025.3551993)
 
-and extends it into a usable academic project: a FastAPI + scikit-learn/XGBoost/LightGBM backend with real SHAP and LIME explanations, a React/TypeScript dashboard, SQLite persistence, dataset analytics, batch prediction, asynchronous training and reproducible scripts.
+as a multi-tenant service: organizations upload labelled account data, train and promote models (31 features, nine classifiers, stratified hold-out + 5-fold CV), analyze accounts one by one or in batches, and get real SHAP and LIME explanations for every prediction. Everything shown in the application is computed from the organization's own data; nothing is seeded, sampled or mocked.
 
-**Academic integrity.** Numbers from the paper are only ever shown as *"Reported in base paper"*. Numbers produced by this code are shown as *"Reproduced by this implementation"*. They are never mixed. Synthetic demo data is labelled **DEMO DATA — NOT REAL SOCIAL MEDIA DATA** everywhere and is never used to claim research accuracy. The *Risk Score* is `round(100 × P(bot))` — an application-level view of the model probability, not a statement that an account is malicious.
+**Integrity rules.** Figures from the paper are only ever displayed under *"Research paper results"*; figures produced by this software under *"Your model performance"*. The two are never mixed. A *risk score* is `round(100 × P(bot))` — a model output, not a verified fact — and results are worded as "Classified as BOT/HUMAN" and "Estimated bot probability".
 
 ---
 
-## 1. Project structure
+## 1. What is in the repository
 
 ```
 SpamBot/
 ├── backend/
-│   ├── app/                 FastAPI layer
-│   │   ├── main.py          app factory, CORS, exception handlers
-│   │   ├── api/             routers: health, models, predict, datasets, train, evaluation, explain, history, misc
-│   │   ├── core/            config (env), logging, security (uploads, path guard, rate limit)
-│   │   ├── db/              SQLAlchemy engine + ORM tables (predictions, datasets, models, training_runs, batches)
-│   │   ├── schemas/api.py   Pydantic request/response models
-│   │   └── services/        prediction, dataset, training (job manager), dashboard, adapters
-│   ├── ml/                  framework-independent ML package
-│   │   ├── features.py      FEATURE_GROUPS (31 paper features) + FeatureExtractor
-│   │   ├── preprocessing.py two text paths (feature / sentiment), imputation rules
-│   │   ├── sentiment.py     TextBlob polarity / subjectivity
-│   │   ├── train.py         9 classifiers, stratified split, k-fold CV, randomised search, SHAP selection
-│   │   ├── evaluation.py    metrics, confusion matrix, ROC / PR curves
-│   │   ├── explain.py       SHAP (Tree/Kernel) global + local, LIME local
-│   │   ├── predict.py       Predictor, risk score
-│   │   ├── model_registry.py registry.json + artefact layout
-│   │   ├── datasets.py      Cresci importer, CSV inspection
-│   │   ├── demo_data.py     synthetic demo generator (labelled DEMO)
-│   │   └── paper_results.py paper-reported tables (reference only)
-│   ├── models/              trained artefacts (created by training)
-│   ├── data/                SQLite DB, uploads, datasets/, exports/
-│   ├── tests/               pytest suite (features, ML, SHAP, LIME, API)
+│   ├── app/
+│   │   ├── main.py             FastAPI app: request ids, security headers, body limits, CORS, error handlers, lifespan
+│   │   ├── cli.py              python -m app.cli migrate | create-admin | check-config | purge-expired-sessions | apply-retention
+│   │   ├── worker.py           Celery application (job backend "celery")
+│   │   ├── api/v1/             auth · analyses (+batches) · datasets · models · system (health, jobs, providers, audit, research)
+│   │   ├── core/               config (BOTSHIELD_* env), security (bcrypt, JWT, limiter, upload validation), storage (local/S3), logging
+│   │   ├── db/                 SQLAlchemy 2 models (users, organizations, refresh sessions, datasets/versions, models, evaluations,
+│   │   │                       predictions, explanations, batches, jobs, audit) + engine
+│   │   ├── schemas/api.py      Pydantic request/response models
+│   │   └── services/           auth · prediction · dataset · model lifecycle · jobs + handlers · dashboard · audit · providers · retention
+│   ├── alembic/                migrations (PostgreSQL in production, SQLite in development/tests)
+│   ├── ml/                     framework-independent ML package: features (31), preprocessing, sentiment, train, evaluation,
+│   │                           explain (SHAP/LIME), predict, model_registry (artefacts + SHA-256 checksums), datasets, paper_results
+│   ├── tests/                  pytest suite (API v1, auth/RBAC/tenancy, ML, storage); tests/fixtures generates TEST-ONLY data
+│   ├── Dockerfile · docker-entrypoint.sh   gunicorn API or Celery worker, migrations at boot
 │   └── requirements.txt
-├── frontend/                React 18 + TypeScript + Vite + Tailwind v4 + Recharts + Lucide
-│   └── src/{pages,components,layouts,hooks,services,types,utils,test}
-├── scripts/                 fetch_datasets.py · train_model.py · evaluate_model.py · report_results.py · purge_demo.py · seed_demo.py
-├── docs/                    paper-analysis.md · architecture.md · methodology.md · api.md · results.md
-├── base-paper.pdf
-├── docker-compose.yml · .env.example
+├── frontend/                   React 18 + TypeScript + Vite + Tailwind; typed API client with silent token refresh
+│   ├── src/pages/              Login, Dashboard, Analyze, Batch, Datasets, Models, Training, Evaluation, Explainability,
+│   │                           History, Research, Architecture, API Docs, Settings
+│   └── Dockerfile · nginx.conf static SPA + /api/ proxy
+├── scripts/                    train_model.py · report_results.py · fetch_datasets.py ·
+│                               check_no_demo_data.(py|sh|ps1) · verify_production_readiness.(py|sh|ps1)
+├── docs/                       deployment · api · architecture · methodology · paper-analysis · results ·
+│                               production-audit · production-completion-report
+├── docker-compose.yml          development stack (SQLite, thread jobs)
+├── docker-compose.prod.yml     production stack (PostgreSQL, Redis, API, worker, nginx)
+├── render.yaml                 Render Blueprint (free tier)
+├── .env.example · .env.production.example
+└── what_to_understand.md       guided tour of the codebase
 ```
 
 ## 2. Requirements
 
-- **Python 3.10 – 3.12** (3.13/3.14 lack prebuilt wheels for `shap`/`lightgbm` on Windows). On Windows with several interpreters use `py -3.12`.
-- **Node.js 18+** (tested with Node 24, npm 11).
-- Optional: Docker Desktop.
+- Python 3.10–3.12 (3.13+ lacks prebuilt wheels for `shap`/`lightgbm`), Node 20+
+- Development: nothing else (SQLite, local storage, in-process jobs)
+- Production: PostgreSQL 14+, an S3-compatible bucket (recommended) and Redis if you run Celery workers
 
-## 3. Installation
-
-### Backend
-
-Windows (PowerShell / cmd):
-
-```powershell
-cd backend
-py -3.12 -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-macOS / Linux:
+## 3. Local development
 
 ```bash
+# backend
 cd backend
-python3.12 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
+python -m venv .venv && . .venv/Scripts/activate   # or source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt
+cd .. && cp .env.example .env                       # development profile, SQLite, local storage
+cd backend
+python -m app.cli migrate                           # alembic upgrade head
+python -m app.cli create-admin                      # first administrator (interactive; enforces the password policy)
+uvicorn app.main:app --reload --port 8000
 
-### Frontend
-
-```bash
+# frontend (second terminal)
 cd frontend
 npm install
+npm run dev                                         # http://localhost:5173 → proxies /api to :8000
 ```
 
-### Environment
+Sign in with the administrator you just created. There are **no built-in accounts**.
+
+Docker alternative: `docker compose up --build` (API on :8000, UI on :8080), then `docker compose exec backend python -m app.cli create-admin`.
+
+## 4. Workflow inside the application
+
+1. **Datasets** — upload a CSV (one account per row: `followers_count`, `friends_count`, `statuses_count`, `favourites_count`, `listed_count`, `verified`, `default_profile`, `description`, … plus a label column such as `label`/`is_bot`/`class` with `bot|human` or `1|0`). Uploads are size/MIME/content validated, checksummed, versioned and profiled (column mapping, missing values, class balance, feature coverage). Admins can also import the public Cresci-2015/2017 user-level benchmarks.
+2. **Training** — pick a labelled dataset and one of nine classifiers; the job runs in the background (thread pool or Celery) with progress, log and stored results: hold-out metrics, confusion matrix, ROC/PR curves, CV folds, hyper-parameters, global SHAP importance.
+3. **Models** — promote a `READY` model to `PRODUCTION` (artefact checksums are verified first); deprecate or delete old versions. The paper's tables are displayed separately, labelled as research results.
+4. **Analyze / Batch** — score accounts entered manually, fetched from the X API (only when `BOTSHIELD_X_BEARER_TOKEN` is configured — otherwise the UI states *"External API integration is not configured"*), or uploaded as a CSV batch (async job, downloadable `predictions.csv`, evaluation when labels are present).
+5. **Explainability / History** — global SHAP (bar, beeswarm, groups) per model; local SHAP waterfall + LIME per prediction, computed on demand for batch rows and persisted.
+6. **Settings** — profile & password, users and roles (`ADMIN`, `ANALYST`, `VIEWER`), organization name, retention purge, providers, audit log.
+
+## 5. Command-line pipeline
 
 ```bash
-cp .env.example .env        # Windows: copy .env.example .env
+cd backend
+python ../scripts/train_model.py --email admin@example.org --csv ../data/my_accounts.csv --algorithm lightgbm --activate
+python ../scripts/train_model.py --email admin@example.org --benchmark cresci-17 --all        # nine classifiers
+python ../scripts/report_results.py --email admin@example.org                                 # → docs/results.md
+python ../scripts/fetch_datasets.py --help                                                    # public Cresci mirror
 ```
 
-All variables are optional; see `.env.example` (CORS origins, upload limit, rate limit, demo mode, tweets-per-user for Cresci import).
+Scripts act as the given user inside their organization and go through the same services as the API (jobs, audit, checksums).
 
-## 4. Run
-
-Backend (from `backend/`, venv active):
+## 6. Tests and verification
 
 ```bash
-uvicorn app.main:app --reload            # http://localhost:8000  ·  Swagger: /docs  ·  ReDoc: /redoc
+cd backend && python -m pytest -q                       # API v1, auth/RBAC/tenancy, jobs, ML, storage (empty temp DB per run)
+cd frontend && npx tsc -b && npx vitest run && npm run build
+python scripts/check_no_demo_data.py                    # fails on demo/mock/sample/seed patterns in production code
+python scripts/verify_production_readiness.py [--url https://app.example.com --strict]
 ```
 
-Frontend (from `frontend/`):
+## 7. Production deployment
+
+See **[docs/deployment.md](docs/deployment.md)** for the full guide (topology, every environment variable, TLS, backups/recovery, Render). Short version:
 
 ```bash
-npm run dev                              # http://localhost:5173  (proxies /api → localhost:8000)
+cp .env.production.example .env        # set SECRET_KEY, DATABASE_URL, CORS_ORIGINS, storage, Postgres password …
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml exec api python -m app.cli create-admin
 ```
 
-Docker (frontend on http://localhost:8080, backend on :8000, SQLite + models persisted in `backend/data` and `backend/models`):
+Security properties: bcrypt password hashing with a policy and login lockout; JWT access tokens + rotating hashed refresh tokens in httpOnly/Secure cookies; RBAC and organization scoping on every query; upload validation (extension, MIME, sniffing, size); artefacts loaded only after SHA-256 verification; rate limiting; structured JSON logs with request ids and secret scrubbing; security headers and HSTS; no stack traces to clients; no secrets in the frontend; `.env` never committed.
 
-```bash
-docker compose up --build
-```
+## 8. Results
 
-## 5. Production setup (real data)
+Measured results for your own models appear on the Models/Evaluation pages and can be exported to `docs/results.md` with `scripts/report_results.py`. Numbers obtained on the public Cresci user-level mirrors during development (stratified hold-out) are recorded in [docs/results.md](docs/results.md) with their exact configuration; the paper's numbers are quoted there separately and are not directly comparable (the public mirror lacks the tweet files, so 11 tweet-derived features are constant and dropped, leaving 20 of 31).
 
-The production model is trained on the **real Cresci-2015 / Cresci-2017 benchmark data** (the base paper's datasets). A public, user-level mirror of the MIB `users.csv` files is downloaded, verified (SHA-256 recorded in `backend/data/datasets/PROVENANCE.md`) and split into the per-subset folder layout the importer expects. Row counts match the paper's Tables 2–3 exactly.
+## 9. Known limitations
 
-```bash
-# repository root, backend venv active
-python scripts/fetch_datasets.py                       # Cresci-15 + Cresci-17 (add --external for a 37k-account CC BY-SA dataset)
-python scripts/train_model.py --dataset cresci-17 --all # all nine classifiers on Cresci-17 (paper's main dataset)
-python scripts/train_model.py --dataset cresci-15 --all
-python scripts/train_model.py --dataset cresci-combined --algorithm lightgbm   # production model on both datasets (activated)
-python scripts/report_results.py                        # writes docs/results.md (measured numbers only)
-```
-
-Then start the backend and frontend (section 4). `.env` ships with `BOTSHIELD_ENVIRONMENT=production` and `BOTSHIELD_DEMO_MODE_ENABLED=false`, so no synthetic data can be generated; `python scripts/purge_demo.py` removes anything left over from demo runs.
-
-**What the public mirror contains — and what it does not.** The mirror has account profiles only. The tweet files (`tweets.csv`, ~2.5 GB) are distributed by the dataset authors on request (MIB project) and are not redistributed here. Without them the 11 tweet-derived features of the paper (hashtag/mention/URL/retweet/reply counts and per-tweet averages) are constant and are dropped automatically, so production models use **20 of the 31 features**; linguistic and sentiment features come from the profile description. To restore the full 31-feature setup, place each subset's `tweets.csv` next to its `users.csv` and re-import (`--reimport`). Every model card states the features actually used.
-
-## 6. Datasets
-
-| Dataset | Source | Rows | Notes |
-|---|---|---|---|
-| Cresci-15 | MIB (Cresci et al. 2015), public user-level mirror | 5,301 | TFP, E13 (humans) · FSF, INT, TWT (fake followers) |
-| Cresci-17 | MIB (Cresci et al. 2017), public user-level mirror | 12,737 | genuine, social spambots 1–3, traditional spambots #1, fake followers (paper Table 3) |
-| Cresci-17-extra | same mirror | 1,631 | traditional spambots 2–4 — kept aside, not in the paper's composition |
-| Twitter Human Bots (optional) | Hugging Face `airt-ml/twitter-human-bots`, CC BY-SA 3.0 | 37,438 | independent real dataset for cross-dataset evaluation (`--external`) |
-
-Citations: Cresci et al., "Fame for sale: Efficient detection of fake Twitter followers", *DSS* 80 (2015); Cresci et al., "The paradigm-shift of social spambots", *WWW Companion* (2017). Terms of use are those of the original authors (academic/research).
-
-Any other labelled CSV works too: one account per row with raw counts (`followers_count`, `friends_count`, `statuses_count`, `favourites_count`, `num_hashtags`, …) or pre-computed features, plus a label column (`label`, `is_bot`, `class`, `account_type`; values such as `bot/human`, `1/0`). Upload it on the Datasets page or pass `--csv` to the training script.
-
-Layout expected by the importer (also usable for the authors' full distribution):
-
-```
-backend/data/datasets/cresci-15/{TFP,E13,FSF,INT,TWT}/users.csv[, tweets.csv]
-backend/data/datasets/cresci-17/{genuine_accounts,social_spambots_1..3,traditional_spambots_1,fake_followers}/users.csv[, tweets.csv]
-```
-
-## 7. Preprocess, train, evaluate (CLI)
-
-```bash
-python scripts/train_model.py --dataset cresci-15 --all                 # imports (once) + trains all nine classifiers
-python scripts/train_model.py --dataset cresci-17 --algorithm xgboost --feature-selection --top-k 20
-python scripts/train_model.py --csv path/to/labelled.csv --algorithm random_forest --test-size 0.3 --cv-folds 5
-
-python scripts/evaluate_model.py                                        # active model: stored hold-out + CV metrics
-python scripts/evaluate_model.py --dataset cresci-15 --out eval.json    # active model on a dataset
-python scripts/evaluate_model.py --model <model_id> --csv labelled.csv
-```
-
-Training stages: preprocessing → feature engineering (optional SHAP selection) → training (randomised search, stratified CV) → cross-validation → hold-out evaluation → SHAP analysis → saving. Artefacts: `backend/models/<model_id>/{pipeline.joblib, scaler.joblib, feature_metadata.json, metrics.json, shap_global.json, background.npy, lime_sample.npy}` plus `backend/models/registry.json` and convenience copies `best_model.joblib`, `scaler.joblib`, `feature_metadata.json` for the active model.
-
-## 7b. Live X (Twitter) API integration
-
-The Analyze page can pull a real account straight from X through the bundled **X API v2 adapter** (`backend/app/services/x_api_adapter.py`):
-
-1. Create a project/app at https://developer.x.com and copy the app-only **Bearer Token** (Keys and tokens).
-2. Put it in `.env`: `BOTSHIELD_X_BEARER_TOKEN=...` and restart the backend. Settings → Integrations shows `x_api · configured`.
-3. Analyze Account → *Fetch a live account* → adapter "X (Twitter) API v2" → `@username` → Fetch → Analyze.
-
-What it does: `GET /2/users/by/username/{username}` (profile + public metrics) and `GET /2/users/{id}/tweets?max_results=100` (recent tweets with entities and engagement) → mapped to the account schema → the usual 31-feature extraction, prediction, SHAP and LIME. Responses are cached for 10 minutes; 401/403/404/429 are surfaced with the API's reason (429 includes `Retry-After`).
-
-Access-level caveats (stated in the UI, never hidden): reading other accounts' tweets requires the **Basic** tier or higher — on the Free tier the profile is fetched and the tweets error is shown; protected accounts expose no tweets. API v2 does not expose `default_profile`, `geo_enabled`, `profile_background_tile` or the banner, so these are sent as `false` and listed as `unavailable_fields`.
-
-## 8. Tests
-
-```bash
-cd backend && .venv\Scripts\python -m pytest        # Windows   (52 tests: features, preprocessing, ML, SHAP, LIME, API, security)
-cd backend && python -m pytest                      # macOS/Linux
-cd frontend && npm test                             # vitest: API client, state handling, components
-cd frontend && npm run typecheck && npm run build
-```
-
-## 9. Application pages
-
-| Route | What it does |
-|---|---|
-| `/` Dashboard | cards (accounts analysed, bots, humans, avg P(bot), high-risk, current model) + charts from SQLite / active model artefacts; empty states when nothing is trained |
-| `/analyze` | AI analysis console: account info, behavioural metrics, tweet text → prediction, confidence, risk, SHAP (bars/waterfall), LIME, key indicators, interpretation; *Load sample account* (DEMO); sample adapter |
-| `/batch-analysis` | CSV or registered dataset → batch prediction, distribution, evaluation if labelled, `predictions.csv` download |
-| `/datasets` | upload/inspect CSVs (schema, missing, duplicates, class distribution, feature availability), demo generator, Cresci import |
-| `/models` | nine classifiers, registry with measured metrics, comparison chart, paper-reported tables (separate) |
-| `/training` | select dataset/model/test size/CV folds/search/SHAP selection → async job with stage tracker → results |
-| `/evaluation` | metrics, confusion matrix, ROC, PR, CV folds, split info, feature set |
-| `/explainability` | global SHAP (bar, beeswarm, group importance, feature distribution) + local SHAP/LIME for any stored prediction |
-| `/history` | filterable prediction history; row → full analysis |
-| `/research` · `/architecture` · `/api-docs` · `/settings` | academic context, system diagrams, Swagger, configuration |
-
-## 10. Results
-
-Measured results (hold-out + 5-fold CV per classifier and dataset, cross-dataset evaluation) are generated into [docs/results.md](docs/results.md) by `scripts/report_results.py` and shown live on the Models / Evaluation pages under "Reproduced by this implementation". Headline numbers from the current registry (stratified 25 % hold-out, real Cresci user-level data, 20 features):
-
-| Model | Trained on | Accuracy | Precision | Recall | F1 | ROC-AUC |
-|---|---|---|---|---|---|---|
-| LightGBM **(active, production)** | Cresci-15 + Cresci-17 combined (14,687 accounts) | 0.980 | 0.987 | 0.981 | 0.984 | 0.995 |
-| LightGBM | Cresci-17 (12,737) | 0.986 | 0.994 | 0.987 | 0.991 | 0.997 |
-| XGBoost | Cresci-15 (5,301) | 0.982 | 0.990 | 0.981 | 0.986 | 0.997 |
-
-Cross-dataset: the Cresci-17 model reaches F1 0.947 on Cresci-15 unseen, while the Cresci-15 model (fake followers only) reaches F1 0.607 on Cresci-17 — which is why the production model is trained on both. The paper's numbers (Cresci-15 LightGBM 0.991 / 0.993; Cresci-17 XGBoost 0.990 / 0.993, 5-fold CV with all 31 features) are shown separately under "Reported in base paper" and are not comparable one-to-one (docs/results.md §4).
-
-## 11. How the implementation maps to the paper
-
-See `docs/paper-analysis.md` (what the paper says), `docs/methodology.md` (what we implemented, formulas, adaptations) and `docs/architecture.md`. Summary: the exact 31-feature set of Table 4 in six groups; the paper's two-path preprocessing; nine classifiers with stratified split + 5-fold CV and CV-driven hyperparameter search; SHAP for feature selection and global/local attribution; LIME for local explanations; Cresci-15/17 as the intended benchmark datasets.
-
-## 12. Known limitations
-
-- The public Cresci mirror is user-level only; the 11 tweet-derived features need the authors' `tweets.csv` files (request from MIB). Production models therefore use 20 of 31 features until those files are added.
-- Cresci text-derived features (when tweets are available) use up to N tweets per account (configurable) for tractability.
-- XGBoost SHAP values are reported in log-odds when the installed shap/xgboost pair cannot compute probability-scale values; the scale is shown in the UI.
-- Kernel SHAP (SVM, LR, NB, AdaBoost) is slower and uses capped samples for global importance.
-- Live X integration depends on your developer tier (tweets need Basic+) and X API v2 omits four v1.1 profile flags used by the paper.
-- Single-worker in-process training job queue (sufficient for a local academic deployment; not horizontally scalable).
-- No authentication (local/academic use). Uploads are validated and rate-limited, but the API is not multi-tenant.
-
-## 13. Future improvements
-
-- OAuth user-context for the X adapter (reads protected accounts the user can access) and a scheduled re-scan of watch-listed accounts.
-- Temporal features (tweet timing) and graph features, which the paper lists as future work, plus adaptive/continual retraining.
-- Persisted job queue (e.g. RQ/Celery) and authentication for shared deployments.
-- Cross-dataset generalisation experiments (train on Cresci-15, test on Cresci-17) exposed in the UI.
-
-## Appendix — Demo Mode (optional, off by default)
-
-Set `BOTSHIELD_DEMO_MODE_ENABLED=true` to allow generating a small synthetic dataset (`python scripts/seed_demo.py` or Datasets → Generate demo dataset). Everything derived from it is flagged `is_demo` and banner-labelled **DEMO DATA — NOT REAL SOCIAL MEDIA DATA**; it exists only for classroom demonstrations without data and is never a research result. `python scripts/purge_demo.py` removes all demo artefacts.
+- Public Cresci mirrors contain profiles only; the authors' `tweets.csv` files (available on request from MIB) are needed for the 11 tweet-derived features.
+- X API v2 omits four v1.1 profile flags used by the paper; those are imputed and listed under `unavailable_fields`.
+- Kernel SHAP (SVM, LR, NB, AdaBoost) is slower than TreeSHAP; global importance uses a capped background sample.
+- Password-reset tokens are written to the security log for operators to deliver; there is no e-mail integration.
+- Render free tier has no persistent disk — use S3-compatible storage there (see deployment guide).
 
 ## License / attribution
 
-The base paper is CC BY 4.0. This project is an academic implementation; the paper's authors are not affiliated with it.
+The base paper is CC BY 4.0. Cresci datasets: Cresci et al. 2015 (*DSS* 80) and 2017 (*WWW Companion*), academic terms of the original authors. This project is an independent implementation; the paper's authors are not affiliated with it.

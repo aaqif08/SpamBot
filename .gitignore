@@ -8,15 +8,17 @@ backend/.venv/
 frontend/node_modules/
 frontend/dist/
 
-# Data / artefacts (temporary database files and uploads)
+# Runtime data (never committed): database, storage, caches, uploads, model artefacts
 backend/data/*.db*
-backend/data/uploads/*
-!backend/data/uploads/.gitkeep
-backend/data/exports/*
-!backend/data/exports/.gitkeep
-backend/data/cache/
 backend/data/storage/
-backend/data/datasets/demo/
+backend/data/cache/
+backend/data/uploads/
+backend/data/exports/
+backend/data/raw/
+backend/data/datasets/external/
+backend/data/datasets/cresci-17-extra/
+backend/models/
+backend/.pytest_cache/
 
 # Env
 .env

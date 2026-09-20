@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { api, errorMessage } from "@/services/api";
-import type { TrainStatusResponse } from "@/types/api";
+import type { JobResponse } from "@/types/api";
 
-/** Poll a background job (training or dataset import) until it finishes. */
-export function useJobPolling(jobId: string | null, kind: "train" | "dataset" = "train", intervalMs = 1000) {
-  const [status, setStatus] = useState<TrainStatusResponse | null>(null);
+const TERMINAL = new Set(["COMPLETED", "FAILED", "CANCELLED"]);
+
+/** Poll a background job (/jobs/{id}) until it reaches a terminal status. */
+export function useJobPolling(jobId: string | null, intervalMs = 1000) {
+  const [status, setStatus] = useState<JobResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<number | null>(null);
 
@@ -16,10 +18,10 @@ export function useJobPolling(jobId: string | null, kind: "train" | "dataset" = 
     let stopped = false;
     const tick = async () => {
       try {
-        const s = kind === "train" ? await api.trainStatus(jobId) : await api.jobStatus(jobId);
+        const s = await api.job(jobId);
         if (stopped) return;
         setStatus(s);
-        if (s.status === "completed" || s.status === "failed") return;
+        if (TERMINAL.has(s.status)) return;
       } catch (e) {
         if (stopped) return;
         setError(errorMessage(e));
@@ -32,7 +34,7 @@ export function useJobPolling(jobId: string | null, kind: "train" | "dataset" = 
       stopped = true;
       if (timer.current) window.clearTimeout(timer.current);
     };
-  }, [jobId, kind, intervalMs]);
+  }, [jobId, intervalMs]);
 
-  return { status, error, done: status?.status === "completed" || status?.status === "failed" };
+  return { status, error, done: status !== null && TERMINAL.has(status.status) };
 }

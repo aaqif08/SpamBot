@@ -1,255 +1,188 @@
-import { Database, FileUp, FlaskConical, Import, Trash2 } from "lucide-react";
+import { Database, Download, FileUp, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { ClassDistributionChart } from "@/components/charts/basic";
-import { Badge, Button, Card, DemoBanner, EmptyState, ErrorState, Notice, PageHeader, Skeleton, SourceTag, Spinner, Table, Td, Th } from "@/components/ui";
+import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, Notice, PageHeader, Select, StatTile, StatusBadge, Table, Tabs, Td, Textarea, Th } from "@/components/ui";
+import { ConfirmDialog } from "@/components/ui/Dialog";
 import { useAction, useApi } from "@/hooks/useApi";
-import { useHealth } from "@/hooks/useHealth";
+import { useAuth } from "@/hooks/useAuth";
 import { useJobPolling } from "@/hooks/usePolling";
 import { api } from "@/services/api";
-import type { DatasetDetail, DatasetInfo } from "@/types/api";
-import { dateTime, featureLabel, int, num, pct } from "@/utils/format";
+import type { DatasetPublic, DatasetSummary } from "@/types/api";
+import { dateTime, int, num, pct } from "@/utils/format";
 
-function DatasetInspector({ id, onDeleted }: { id: string; onDeleted: () => void }) {
-  const detail = useApi(() => api.dataset(id), [id]);
-  const evaluate = useAction(useCallback(() => api.evaluateDataset(id), [id]));
-  const del = useAction(useCallback(() => api.deleteDataset(id), [id]));
-  if (detail.loading && !detail.data) return <Spinner label="Inspecting dataset…" />;
-  if (detail.error || !detail.data) return <ErrorState message={detail.error ?? "Not found"} onRetry={detail.reload} />;
-  const d: DatasetDetail = detail.data;
-  const s = d.summary;
-  const fa = s.feature_availability;
+function SummaryView({ s }: { s: DatasetSummary }) {
+  const [tab, setTab] = useState<"overview" | "columns" | "preview">("overview");
   return (
-    <div className="space-y-4 animate-fade-in">
-      {d.is_demo && <DemoBanner compact />}
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h3 className="text-base font-semibold text-ink">{d.name}</h3>
-          <p className="text-xs text-ink-3">kind: {d.kind} · uploaded {dateTime(d.created_at)}{d.original_filename ? ` · ${d.original_filename}` : ""}</p>
+    <div className="space-y-3">
+      <Tabs tabs={[{ key: "overview", label: "Overview" }, { key: "columns", label: `Columns (${s.n_columns})` }, { key: "preview", label: "Preview" }]} value={tab} onChange={setTab} />
+      {tab === "overview" && (
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <StatTile label="Rows" value={int(s.n_rows)} sub={`${int(s.duplicate_rows)} duplicate rows`} />
+            <StatTile label="Missing cells" value={int(s.total_missing)} />
+            <StatTile label="Feature coverage" value={pct(s.feature_availability.coverage, 0)} sub={`${s.feature_availability.direct.length} direct · ${s.feature_availability.derivable.length} derivable · ${s.feature_availability.missing.length} missing`} />
+            <StatTile label="Label column" value={s.label_column ?? "none"} sub={s.label_column ? `${int(s.label_valid_rows)} valid labels` : "unlabelled — usable for batch scoring only"} />
+          </div>
+          {s.class_distribution && <ClassDistributionChart rows={[{ name: "dataset", human: s.class_distribution.HUMAN, bot: s.class_distribution.BOT }]} />}
+          {s.warnings.length > 0 && <Notice tone="warning"><ul className="list-disc pl-4">{s.warnings.map((w) => <li key={w}>{w}</li>)}</ul></Notice>}
+          {s.feature_availability.missing.length > 0 && <p className="text-xs text-ink-3">Features not computable from these columns (imputed with training medians at inference): {s.feature_availability.missing.join(", ")}</p>}
         </div>
-        <div className="flex gap-2">
-          {d.has_label && (
-            <Button size="sm" variant="secondary" icon={FlaskConical} loading={evaluate.loading} onClick={() => evaluate.run()}>
-              Evaluate active model on this dataset
-            </Button>
-          )}
-          {(d.kind === "upload" || d.kind === "demo") && (
-            <Button size="sm" variant="danger" icon={Trash2} loading={del.loading} onClick={async () => { if (window.confirm("Delete this dataset?")) { await del.run(); onDeleted(); } }}>
-              Delete
-            </Button>
-          )}
-        </div>
-      </div>
-      {s.warnings.map((w) => (
-        <Notice key={w} tone="warning">{w}</Notice>
-      ))}
-      <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {[
-          ["Records", int(s.n_rows)],
-          ["Columns", int(s.n_columns)],
-          ["Missing values", int(s.total_missing)],
-          ["Duplicate rows", int(s.duplicate_rows)],
-          ["Label column", s.label_column ?? "none (inference only)"],
-          ["Feature coverage", pct(fa.coverage, 0)],
-        ].map(([k, v]) => (
-          <div key={k} className="rounded-lg border border-border p-3">
-            <div className="text-[11px] text-ink-3">{k}</div>
-            <div className="truncate text-sm font-semibold text-ink">{v}</div>
-          </div>
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card title="Class distribution" subtitle={s.class_distribution ? "From the detected label column" : "No labels — inference only"}>
-          {s.class_distribution ? <ClassDistributionChart rows={[{ name: "All rows", human: s.class_distribution.HUMAN, bot: s.class_distribution.BOT }]} height={110} /> : <EmptyState title="Unlabelled dataset" description="Batch prediction works; evaluation and training require a label column (label / is_bot / class / account_type)." />}
-        </Card>
-        <Card title="Feature availability" subtitle="Which of the paper's 31 features this CSV provides directly, can derive, or lacks">
-          <div className="space-y-2 text-xs">
-            <div><Badge tone="good">direct {fa.direct.length}</Badge> <span className="text-ink-2">{fa.direct.map(featureLabel).join(", ") || "—"}</span></div>
-            <div><Badge tone="accent">derivable {fa.derivable.length}</Badge> <span className="text-ink-2">{fa.derivable.map(featureLabel).join(", ") || "—"}</span></div>
-            <div><Badge tone="critical">missing {fa.missing.length}</Badge> <span className="text-ink-2">{fa.missing.map(featureLabel).join(", ") || "—"}</span></div>
-            <p className="text-[11px] text-ink-3">Missing features are imputed with the training median by the model pipeline (preprocessing status: median imputation → min-max scaling).</p>
-          </div>
-        </Card>
-      </div>
-      {evaluate.error && <ErrorState title="Evaluation failed" message={evaluate.error} />}
-      {evaluate.result && (
-        <Card title={`Evaluation of ${evaluate.result.model.name} on this dataset`} subtitle={`${evaluate.result.n_rows.toLocaleString()} labelled rows`} actions={<SourceTag kind="ours" />}>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-            {(["accuracy", "precision", "recall", "f1", "roc_auc"] as const).map((k) => (
-              <div key={k} className="rounded-lg border border-border p-3">
-                <div className="text-[11px] uppercase text-ink-3">{k.replace("_", "-")}</div>
-                <div className="text-lg font-semibold tabular-nums text-ink">{num(evaluate.result?.evaluation.metrics[k], 3)}</div>
-              </div>
-            ))}
-          </div>
-          {evaluate.result.is_demo && <p className="mt-2 text-[11px] text-ink-3">Demo data/model — not a research result.</p>}
-        </Card>
       )}
-      <Card title="Columns" padded={false}>
-        <Table className="rounded-none border-0">
-          <thead>
-            <tr><Th>Column</Th><Th>Canonical name</Th><Th>dtype</Th><Th align="right">Missing</Th><Th align="right">Unique</Th></tr>
-          </thead>
-          <tbody>
-            {s.columns.map((c) => (
-              <tr key={c.name}><Td className="font-mono text-xs">{c.name}</Td><Td className="font-mono text-xs text-ink-2">{c.canonical}</Td><Td className="text-xs">{c.dtype}</Td><Td align="right" mono>{c.missing}</Td><Td align="right" mono>{c.unique}</Td></tr>
-            ))}
-          </tbody>
+      {tab === "columns" && (
+        <Table compact>
+          <thead><tr><Th>Column</Th><Th>Type</Th><Th>Maps to</Th><Th align="right">Missing</Th><Th align="right">Unique</Th><Th align="right">Min</Th><Th align="right">Median</Th><Th align="right">Max</Th></tr></thead>
+          <tbody>{s.columns.map((c) => { const n = s.numeric_summary[c.name]; return <tr key={c.name}><Td mono>{c.name}</Td><Td className="text-xs">{c.dtype}</Td><Td className="text-xs">{c.canonical ? <Badge tone="good">{c.canonical}</Badge> : <span className="text-ink-3">—</span>}</Td><Td align="right" mono>{int(c.missing)}</Td><Td align="right" mono>{int(c.unique)}</Td><Td align="right" mono>{n ? num(n.min, 2) : ""}</Td><Td align="right" mono>{n ? num(n.median, 2) : ""}</Td><Td align="right" mono>{n ? num(n.max, 2) : ""}</Td></tr>; })}</tbody>
         </Table>
-      </Card>
-      <Card title="Preview (first 10 records)" padded={false}>
-        <div className="scrollbar-thin overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr>{Object.keys(s.preview[0] ?? {}).map((k) => <Th key={k}>{k}</Th>)}</tr>
-            </thead>
-            <tbody>
-              {s.preview.map((row, i) => (
-                <tr key={i}>{Object.values(row).map((v, j) => <Td key={j} className="max-w-[220px] truncate font-mono text-[11px]">{v === null ? "" : String(v)}</Td>)}</tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-function CresciPanel({ onImported }: { onImported: () => void }) {
-  const status = useApi(() => api.cresciStatus(), []);
-  const [jobId, setJobId] = useState<string | null>(null);
-  const [jobKind, setJobKind] = useState<string>("");
-  const poll = useJobPolling(jobId, "dataset");
-  const start = useAction(useCallback((kind: string) => api.importCresci(kind), []));
-  const reloadStatus = status.reload;
-  useEffect(() => {
-    if (poll.done && poll.status?.status === "completed" && jobId) {
-      setJobId(null);
-      reloadStatus();
-      onImported();
-    }
-  }, [poll.done, poll.status, jobId, reloadStatus, onImported]);
-  if (status.loading && !status.data) return <Skeleton className="h-40" />;
-  if (status.error || !status.data) return <ErrorState message={status.error ?? ""} onRetry={status.reload} />;
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {status.data.map((c) => (
-        <Card key={c.kind} title={c.kind.toUpperCase()} subtitle={c.paper_reported.citation} actions={c.imported ? <Badge tone="good">imported</Badge> : c.available ? <Badge tone="accent">files found</Badge> : <Badge tone="neutral">not installed</Badge>}>
-          <div className="space-y-3 text-xs">
-            <div>
-              <div className="mb-1 flex items-center gap-2 font-semibold text-ink"><SourceTag kind="paper" /></div>
-              <Table compact>
-                <thead><tr><Th>Subset</Th><Th>Type</Th><Th align="right">Accounts</Th><Th align="right">Tweets</Th></tr></thead>
-                <tbody>
-                  {c.paper_reported.subsets.map((s) => (
-                    <tr key={s.name}><Td className="text-xs">{s.name}</Td><Td className="text-xs">{s.type}</Td><Td align="right" mono>{int(s.accounts)}</Td><Td align="right" mono>{int(s.tweets)}</Td></tr>
-                  ))}
-                </tbody>
-              </Table>
-              <p className="mt-1 text-[11px] text-ink-3">Statistics as reported in the base paper (Tables 2–3). Measured statistics appear only after import.</p>
-            </div>
-            <div>
-              <div className="font-semibold text-ink">Local files</div>
-              {c.subsets_found.length ? (
-                <ul className="mt-1 list-disc pl-4 text-ink-2">
-                  {c.subsets_found.map((s) => <li key={s.folder}>{s.folder} → {s.category} (label {s.label}){s.has_tweets ? "" : " — tweets.csv missing"}</li>)}
-                </ul>
-              ) : (
-                <p className="mt-1 text-ink-2">Place the dataset folders at <code className="font-mono">{c.install_path_hint}</code>. Expected subset folders: {c.expected_subsets.join(", ")}. The datasets are obtained from the original authors (Cresci et al.) — see README.</p>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" icon={Import} disabled={!c.available} loading={start.loading && jobKind === c.kind} onClick={async () => { setJobKind(c.kind); const r = await start.run(c.kind); if (r) setJobId(r.job_id); }}>
-                {c.imported ? "Re-import" : "Import & featurise"}
-              </Button>
-              {jobId && jobKind === c.kind && poll.status && <span className="text-ink-2">{poll.status.status}: {poll.status.message}</span>}
-              {jobId && jobKind === c.kind && poll.status?.status === "failed" && <span className="text-status-critical">{poll.status.error}</span>}
-            </div>
-            {start.error && jobKind === c.kind && <p className="text-status-critical">{start.error}</p>}
-          </div>
-        </Card>
-      ))}
+      )}
+      {tab === "preview" && (s.preview.length ? (
+        <div className="overflow-auto"><Table compact><thead><tr>{Object.keys(s.preview[0]).map((k) => <Th key={k}>{k}</Th>)}</tr></thead><tbody>{s.preview.map((row, i) => <tr key={i}>{Object.values(row).map((v, j) => <Td key={j} mono className="max-w-[16rem] truncate">{v === null ? "" : String(v)}</Td>)}</tr>)}</tbody></Table></div>
+      ) : <EmptyState title="No preview stored" />)}
     </div>
   );
 }
 
 export function DatasetsPage() {
-  const health = useHealth();
-  const demoEnabled = health.data?.demo_mode_enabled ?? false;
+  const { hasRole } = useAuth();
+  const canEdit = hasRole("ADMIN", "ANALYST");
+  const isAdmin = hasRole("ADMIN");
   const list = useApi(() => api.datasets(), []);
-  const [selected, setSelected] = useState<string | null>(null);
+  const models = useApi(() => api.models(), []);
+  const benchmarks = useApi(() => api.benchmarks(), [], isAdmin);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const detail = useApi(() => api.dataset(selectedId as string), [selectedId], !!selectedId);
   const [file, setFile] = useState<File | null>(null);
-  const upload = useAction(useCallback((f: File) => api.uploadDataset(f), []));
-  const demo = useAction(useCallback(() => api.createDemoDataset(600, 7), []));
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [versionOf, setVersionOf] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState<DatasetPublic | null>(null);
+  const [evalModel, setEvalModel] = useState("");
+  const [importJob, setImportJob] = useState<string | null>(null);
+  const importPoll = useJobPolling(importJob, 1500);
+
+  const upload = useAction(useCallback(() => {
+    if (!file) throw new Error("Choose a CSV file");
+    return api.uploadDataset(file, { name: name || undefined, description: description || undefined, dataset_id: versionOf || undefined });
+  }, [file, name, description, versionOf]));
+  const del = useAction(useCallback((id: string) => api.deleteDataset(id), []));
+  const evaluate = useAction(useCallback((id: string, model_id: string) => api.evaluateDataset(id, model_id || null), []));
+  const importBench = useAction(useCallback((kind: string) => api.importBenchmark(kind), []));
+  const combine = useAction(useCallback(() => api.combinedBenchmark(), []));
+
+  const reload = list.reload;
+  useEffect(() => { if (importPoll.done) { reload(); setImportJob(null); } }, [importPoll.done, reload]);
 
   const onUpload = async () => {
-    if (!file) return;
-    const r = await upload.run(file);
-    if (r) {
-      setFile(null);
-      list.reload();
-      setSelected(r.id);
-    }
-  };
-  const onDemo = async () => {
-    const r = await demo.run();
-    if (r) {
-      list.reload();
-      setSelected(r.id);
-    }
+    const ds = await upload.run();
+    if (ds) { setFile(null); setName(""); setDescription(""); setVersionOf(""); list.reload(); setSelectedId(ds.id); }
   };
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Datasets" description="Upload CSV datasets, inspect columns and feature availability, and import the Cresci-15 / Cresci-17 benchmark files (python scripts/fetch_datasets.py downloads the public user-level mirror)." />
+      <PageHeader title="Datasets" description="Upload labelled account CSVs to train models, or unlabelled CSVs to score in batch. Every upload is versioned, checksummed and validated before it can be used." />
+      <ConfirmDialog open={!!confirmDelete} title={`Delete “${confirmDelete?.name}”?`} description={confirmDelete?.models_trained ? `${confirmDelete.models_trained} model(s) were trained on this dataset; they keep working but lose the dataset link.` : "All versions and stored files will be removed."} confirmLabel="Delete" destructive loading={del.loading} onCancel={() => setConfirmDelete(null)} onConfirm={async () => { if (confirmDelete) { await del.run(confirmDelete.id); if (selectedId === confirmDelete.id) setSelectedId(null); setConfirmDelete(null); list.reload(); } }} />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
         <div className="space-y-4">
-          <Card title="Upload CSV" subtitle="Labelled (label / is_bot / class) or unlabelled. Max size set by BOTSHIELD_MAX_UPLOAD_MB.">
-            <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border-strong px-4 py-6 text-sm text-ink-2 hover:bg-surface-2">
-              <FileUp className="h-4 w-4" aria-hidden />
-              {file ? file.name : "Choose a .csv file"}
-              <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            </label>
-            <div className="mt-3 flex gap-2">
-              <Button icon={FileUp} onClick={onUpload} loading={upload.loading} disabled={!file}>Upload & inspect</Button>
-              {demoEnabled && <Button variant="secondary" icon={FlaskConical} onClick={onDemo} loading={demo.loading}>Generate demo dataset</Button>}
-            </div>
-            {upload.error && <div className="mt-3"><ErrorState title="Upload failed" message={upload.error} /></div>}
-            {demo.error && <div className="mt-3"><ErrorState title="Demo generation failed" message={demo.error} /></div>}
-            <p className="mt-3 text-[11px] text-ink-3">
-              {demoEnabled
-                ? "Demo dataset = 600 synthetic accounts (DEMO DATA — NOT REAL SOCIAL MEDIA DATA) with the same 31-feature schema."
-                : "Production mode: the synthetic demo generator is disabled (BOTSHIELD_DEMO_MODE_ENABLED=false). Use the real datasets below."}
-            </p>
-          </Card>
+          {canEdit && (
+            <Card title="Upload a dataset" subtitle="CSV with per-account columns (followers_count, friends_count, statuses_count, favourites_count, listed_count, verified, default_profile, description, created_at, …) and optionally a label column (bot/human, 0/1).">
+              <div className="space-y-3">
+                <Field label="CSV file">
+                  <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-border-strong px-4 py-6 text-sm text-ink-2 hover:bg-surface-2 focus-within:ring-2 focus-within:ring-accent">
+                    <FileUp className="h-4 w-4" aria-hidden />{file ? `${file.name} (${(file.size / 1024).toFixed(0)} KB)` : "Choose a .csv file"}
+                    <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                  </label>
+                </Field>
+                <Field label="New version of"><Select value={versionOf} onChange={(e) => setVersionOf(e.target.value)}><option value="">— create a new dataset —</option>{list.data?.map((d) => <option key={d.id} value={d.id}>{d.name} (v{d.current_version?.version ?? d.n_versions})</option>)}</Select></Field>
+                {!versionOf && <Field label="Name" hint="Defaults to the file name"><Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} /></Field>}
+                {!versionOf && <Field label="Description"><Textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={2000} /></Field>}
+                <Button icon={FileUp} onClick={onUpload} loading={upload.loading} disabled={!file}>Upload &amp; validate</Button>
+                {upload.error && <ErrorState title="Upload rejected" message={upload.error} />}
+              </div>
+            </Card>
+          )}
+
+          {isAdmin && (
+            <Card title="Public benchmark import" subtitle="Cresci-2015 / Cresci-2017 user-level CSVs (Cresci et al.). Files are fetched from their public mirror or read from the server's data folder; imported as regular versioned datasets.">
+              {benchmarks.error && <ErrorState message={benchmarks.error} onRetry={benchmarks.reload} />}
+              {benchmarks.data && (
+                <ul className="space-y-2">
+                  {benchmarks.data.map((b) => (
+                    <li key={b.kind} className="flex items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+                      <div>
+                        <div className="font-medium text-ink">{b.kind}</div>
+                        <div className="text-xs text-ink-3">{b.available ? `${b.subsets_found.length} subset(s) present locally` : "not present locally — will be downloaded"} · {b.paper_reported.citation}</div>
+                      </div>
+                      <Button size="sm" variant="secondary" icon={Download} loading={importBench.loading || !!importJob} onClick={async () => { const j = await importBench.run(b.kind); if (j) setImportJob(j.id); }}>Import</Button>
+                    </li>
+                  ))}
+                  <li className="flex items-center justify-between gap-2 rounded-lg border border-border p-3 text-sm">
+                    <div><div className="font-medium text-ink">Combined Cresci-15 + Cresci-17</div><div className="text-xs text-ink-3">Requires both imports first; deduplicated by account id.</div></div>
+                    <Button size="sm" variant="secondary" loading={combine.loading} onClick={async () => { const d = await combine.run(); if (d) { list.reload(); setSelectedId(d.id); } }}>Build</Button>
+                  </li>
+                </ul>
+              )}
+              {importJob && <p className="mt-2 text-xs text-ink-2" role="status"><RefreshCw className="mr-1 inline h-3 w-3 animate-spin" aria-hidden />{importPoll.status?.message ?? "Import queued…"} {importPoll.status ? `(${Math.round(importPoll.status.progress * 100)}%)` : ""}</p>}
+              {importPoll.status?.status === "FAILED" && <ErrorState title="Import failed" message={importPoll.status.error ?? "Unknown error"} />}
+              {importBench.error && <ErrorState message={importBench.error} />}
+              {combine.error && <ErrorState message={combine.error} />}
+            </Card>
+          )}
+
           <Card title="Registered datasets" padded={false}>
             {list.error && <div className="p-4"><ErrorState message={list.error} onRetry={list.reload} /></div>}
-            {list.data && list.data.length === 0 && <div className="p-4"><EmptyState icon={Database} title="No datasets yet" description="Upload a CSV, generate the demo dataset or import Cresci files." /></div>}
-            <ul className="divide-y divide-border">
-              {list.data?.map((d: DatasetInfo) => (
-                <li key={d.id}>
-                  <button onClick={() => setSelected(d.id)} className={`flex w-full flex-col gap-1 px-4 py-3 text-left hover:bg-surface-2 ${selected === d.id ? "bg-accent-soft/60" : ""}`}>
-                    <span className="flex flex-wrap items-center gap-2 text-sm font-medium text-ink">
-                      {d.name}
-                      {d.is_demo && <Badge tone="demo">demo</Badge>}
-                      {d.has_label ? <Badge tone="good">labelled</Badge> : <Badge tone="neutral">unlabelled</Badge>}
-                    </span>
-                    <span className="text-[11px] text-ink-3">{d.kind} · {d.n_rows.toLocaleString()} rows × {d.n_columns} cols · coverage {pct(d.feature_coverage, 0)} · {dateTime(d.created_at)}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            {list.data && list.data.length === 0 && <div className="p-4"><EmptyState icon={Database} title="No datasets yet" description={canEdit ? "Upload a CSV to get started." : "An analyst or admin needs to upload a dataset."} /></div>}
+            {list.data && list.data.length > 0 && (
+              <Table className="rounded-none border-0" compact>
+                <thead><tr><Th>Name</Th><Th>Status</Th><Th align="right">Rows</Th><Th>Label</Th><Th align="right">Models</Th><Th></Th></tr></thead>
+                <tbody>{list.data.map((d) => (
+                  <tr key={d.id} className={`cursor-pointer hover:bg-surface-2 ${selectedId === d.id ? "bg-accent-soft" : ""}`} onClick={() => setSelectedId(d.id)}>
+                    <Td><div className="font-medium text-ink">{d.name}</div><div className="text-[11px] text-ink-3">{d.kind} · v{d.current_version?.version ?? d.n_versions} · {dateTime(d.updated_at)}</div></Td>
+                    <Td><StatusBadge status={d.status} /></Td><Td align="right" mono>{int(d.n_rows)}</Td><Td>{d.has_label ? <Badge tone="good">labelled</Badge> : <Badge tone="neutral">unlabelled</Badge>}</Td><Td align="right" mono>{d.models_trained}</Td>
+                    <Td>{canEdit && <Button size="sm" variant="ghost" icon={Trash2} aria-label={`Delete ${d.name}`} onClick={(e) => { e.stopPropagation(); setConfirmDelete(d); }} />}</Td>
+                  </tr>
+                ))}</tbody>
+              </Table>
+            )}
           </Card>
         </div>
-        <Card title="Inspector" subtitle="Schema validation, missing values, duplicates, class distribution, feature availability">
-          {selected ? <DatasetInspector id={selected} onDeleted={() => { setSelected(null); list.reload(); }} /> : <EmptyState icon={Database} title="Select a dataset" description="Choose a dataset on the left to inspect it." />}
-        </Card>
-      </div>
 
-      <div>
-        <h2 className="mb-3 text-base font-semibold text-ink">Cresci benchmark datasets</h2>
-        <CresciPanel onImported={list.reload} />
+        <div className="space-y-4">
+          {!selectedId && <Card><EmptyState icon={Database} title="Select a dataset" description="Column mapping, class balance, validation warnings and versions appear here." /></Card>}
+          {selectedId && detail.error && <ErrorState message={detail.error} onRetry={detail.reload} />}
+          {selectedId && detail.data && (
+            <>
+              <Card title={detail.data.name} subtitle={detail.data.description || undefined} actions={<StatusBadge status={detail.data.status} />}>
+                {detail.data.current_version?.validation_errors?.length ? <Notice tone="warning"><ul className="list-disc pl-4">{detail.data.current_version.validation_errors.map((e) => <li key={e}>{e}</li>)}</ul></Notice> : null}
+                {detail.data.summary ? <SummaryView s={detail.data.summary} /> : <EmptyState title="No profile available for this version" />}
+              </Card>
+              <Card title="Versions" padded={false}>
+                <Table className="rounded-none border-0" compact>
+                  <thead><tr><Th>v</Th><Th>File</Th><Th align="right">Rows</Th><Th>Status</Th><Th>SHA-256</Th><Th>Uploaded</Th></tr></thead>
+                  <tbody>{(detail.data.versions ?? []).map((v) => <tr key={v.id}><Td mono>{v.version}</Td><Td className="text-xs">{v.original_filename} · {(v.size_bytes / 1024).toFixed(0)} KB</Td><Td align="right" mono>{int(v.n_rows)}</Td><Td><StatusBadge status={v.status} /></Td><Td mono className="text-[11px]">{v.checksum_sha256.slice(0, 12)}…</Td><Td className="text-xs">{dateTime(v.created_at)}</Td></tr>)}</tbody>
+                </Table>
+              </Card>
+              {detail.data.has_label && detail.data.status === "VALIDATED" && (
+                <Card title="Evaluate a model on this dataset" subtitle="Runs the full pipeline on every labelled row and stores the result as an evaluation run.">
+                  {canEdit ? (
+                    <div className="flex flex-wrap items-end gap-2">
+                      <Field label="Model" className="min-w-[16rem]"><Select value={evalModel} onChange={(e) => setEvalModel(e.target.value)}><option value="">Production model</option>{models.data?.models.filter((m) => m.status === "READY" || m.status === "PRODUCTION").map((m) => <option key={m.id} value={m.id}>{m.name} v{m.version}</option>)}</Select></Field>
+                      <Button loading={evaluate.loading} onClick={() => evaluate.run(selectedId, evalModel)}>Evaluate</Button>
+                    </div>
+                  ) : <p className="text-sm text-ink-2">Analysts and admins can run evaluations.</p>}
+                  {evaluate.error && <ErrorState message={evaluate.error} />}
+                  {evaluate.result && (
+                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                      {(["accuracy", "precision", "recall", "f1", "roc_auc"] as const).map((k) => <div key={k} className="rounded-lg border border-border p-3"><div className="text-[11px] uppercase text-ink-3">{k.replace("_", "-")}</div><div className="text-lg font-semibold tabular-nums text-ink">{num(evaluate.result?.evaluation.metrics[k], 3)}</div></div>)}
+                      <p className="col-span-full text-xs text-ink-3">{int(evaluate.result.n_samples)} rows · {evaluate.result.model.name} v{evaluate.result.model.version} · see <Link className="underline" to="/evaluation">Evaluation</Link> for the confusion matrix and curves.</p>
+                    </div>
+                  )}
+                </Card>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

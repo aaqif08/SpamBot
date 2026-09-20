@@ -74,7 +74,7 @@ If no tweets are given, linguistic and sentiment features are computed from the 
 - Randomised hyperparameter search (F1, stratified k-fold) with compact per-model spaces (paper publishes no grids).
 - Stratified k-fold cross-validation of the tuned pipeline on the training split (per-fold accuracy, precision, recall, F1, ROC-AUC, mean ± std).
 - Hold-out evaluation: metrics, confusion matrix, ROC and PR curves, probability histogram.
-- Artefacts and metadata are stored in the model registry (`backend/models/registry.json`).
+- Artefacts (`pipeline.joblib`, `feature_metadata.json`, `metrics.json`, `shap_global.json`, SHAP background and LIME samples) are written with SHA-256 checksums, uploaded to the organization's storage prefix and registered in the `ml_models` table; loading verifies the checksums first.
 
 ## 5. Explainability
 
@@ -99,6 +99,6 @@ LIME (`LimeExplainer`): `LimeTabularExplainer` fitted on the scaled training sam
 4. Cresci import computes text-derived features on up to `BOTSHIELD_MAX_TWEETS_PER_USER` (default 100) most recent tweets per account for tractability; count features use all tweets.
 5. Kernel SHAP global importance is computed on a capped sample (120 rows, 200 coalitions) for non-tree models.
 6. Paper-reported numbers live in `ml/paper_results.py` as reference data and are rendered only under "Reported in base paper".
-7. A synthetic demo dataset (`DEMO DATA — NOT REAL SOCIAL MEDIA DATA`) can be generated when `BOTSHIELD_DEMO_MODE_ENABLED=true` (off in production); nothing trained on it is presented as a research result.
+7. The production application contains no synthetic, sample or seeded data; the test suite generates its own throw-away data under `backend/tests/fixtures` and `scripts/check_no_demo_data.py` enforces the rule on production code.
 8. Features that are constant in the training data are dropped before fitting and listed in `feature_metadata.json` (`dropped_constant_features`). With the public user-level Cresci mirror the 11 tweet-derived features are constant (no `tweets.csv`), so production models use 20 of the 31 features; adding the authors' tweet files and re-importing restores all 31.
-9. The production training data is the public user-level mirror of Cresci-2015/2017 (`scripts/fetch_datasets.py`, provenance + SHA-256 in `backend/data/datasets/PROVENANCE.md`). Cresci-17 uses the paper's Table 3 composition (genuine, social spambots 1-3, traditional spambots #1, fake followers); the mirror's traditional_spambots_2-4 subsets are stored separately and not used.
+9. The benchmark data available for import is the public user-level mirror of Cresci-2015/2017 (`scripts/fetch_datasets.py`, provenance + SHA-256 in `backend/data/datasets/PROVENANCE.md`). Cresci-17 uses the paper's Table 3 composition (genuine, social spambots 1-3, traditional spambots #1, fake followers); the mirror's traditional_spambots_2-4 subsets are stored separately and not used.
