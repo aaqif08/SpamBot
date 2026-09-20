@@ -29,7 +29,11 @@ import type {
   TrainStatusResponse,
 } from "@/types/api";
 
-export const API_BASE: string = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+const rawBase = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim().replace(/\/$/, "") ?? "";
+export const API_BASE: string =
+  rawBase && !rawBase.startsWith("http://") && !rawBase.startsWith("https://")
+    ? `https://${rawBase}`
+    : rawBase;
 
 export const BACKEND_UNAVAILABLE = "Backend unavailable. Start the API server (uvicorn app.main:app) and retry.";
 
