@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: botshield-backend
+    env: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: standard
+    branch: main
+    envVars:
+      - key: BOTSHIELD_ENVIRONMENT
+        value: development
+      - key: BOTSHIELD_CORS_ORIGINS
+        value: "*"
+      - key: BOTSHIELD_DATABASE_URL
+        value: sqlite:////app/data/botshield.db
+
+  - type: web
+    name: botshield-frontend
+    env: docker
+    dockerfilePath: frontend/Dockerfile
+    dockerContext: frontend
+    plan: free
+    branch: main
