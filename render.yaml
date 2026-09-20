@@ -4,7 +4,7 @@ services:
     env: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: backend
-    plan: standard
+    plan: free
     branch: main
     envVars:
       - key: BOTSHIELD_ENVIRONMENT
@@ -16,8 +16,20 @@ services:
 
   - type: web
     name: botshield-frontend
-    env: docker
-    dockerfilePath: frontend/Dockerfile
-    dockerContext: frontend
+    env: static
     plan: free
     branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: botshield-backend
+          property: url
+
