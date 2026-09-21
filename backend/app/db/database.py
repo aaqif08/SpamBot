@@ -44,13 +44,19 @@ def build_engine(url: str | None = None) -> Engine:
     if settings.db_schema and url.startswith("postgresql"):
         schema = settings.db_schema
 
-        # SET as a plain statement rather than a libpq startup option: connection poolers
-        # such as Neon's pgbouncer reject "options=-csearch_path=..." at startup.
+        # SET as a plain statement rather than a libpq startup option (poolers reject the
+        # latter), and in autocommit: otherwise it lands in psycopg's implicit transaction
+        # and the pool's ROLLBACK on check-in silently reverts it.
         @event.listens_for(eng, "connect")
         def _set_search_path(dbapi_connection, _record) -> None:  # pragma: no cover - driver hook
-            cursor = dbapi_connection.cursor()
-            cursor.execute(f'SET search_path TO "{schema}"')
-            cursor.close()
+            previous = dbapi_connection.autocommit
+            dbapi_connection.autocommit = True
+            try:
+                cursor = dbapi_connection.cursor()
+                cursor.execute(f'SET search_path TO "{schema}"')
+                cursor.close()
+            finally:
+                dbapi_connection.autocommit = previous
 
     return eng
 
