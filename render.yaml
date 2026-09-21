@@ -115,7 +115,7 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://botshield-backend.onrender.com/api/*
+        destination: https://botshield-backend-cmuk.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
