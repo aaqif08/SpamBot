@@ -41,6 +41,8 @@ services:
         value: production
       - key: BOTSHIELD_DATABASE_URL
         sync: false   # paste the Internal Database URL (postgres://...) of your Render Postgres
+      - key: BOTSHIELD_DB_SCHEMA
+        value: botshield   # own schema, so a database shared with another app cannot clash
       - key: BOTSHIELD_SECRET_KEY
         generateValue: true
       - key: BOTSHIELD_CORS_ORIGINS

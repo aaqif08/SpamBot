@@ -7,6 +7,7 @@ API or bundled into the frontend.
 
 from __future__ import annotations
 
+import re
 import secrets
 from functools import lru_cache
 from pathlib import Path
@@ -37,6 +38,9 @@ class Settings(BaseSettings):
 
     # ---- database ------------------------------------------------------------ #
     database_url: str = f"sqlite:///{(BACKEND_ROOT / 'data' / 'botshield.db').as_posix()}"
+    # Optional PostgreSQL schema (e.g. "botshield") so the app can share a database with other
+    # applications without table-name clashes. Created by "app.cli migrate" if missing.
+    db_schema: str | None = None
     db_pool_size: int = 5
     db_max_overflow: int = 10
 
@@ -114,6 +118,15 @@ class Settings(BaseSettings):
             for prefix in ("postgres://", "postgresql://"):
                 if v.startswith(prefix):
                     return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
+    @field_validator("db_schema", mode="before")
+    @classmethod
+    def _schema_ident(cls, v: object) -> object:
+        if isinstance(v, str):
+            v = v.strip() or None
+            if v is not None and not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+                raise ValueError("BOTSHIELD_DB_SCHEMA must be a plain identifier (letters, digits, underscore)")
         return v
 
     @model_validator(mode="after")
