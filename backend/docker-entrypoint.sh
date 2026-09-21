@@ -10,8 +10,19 @@ case "$1" in
     echo "[entrypoint] applying database migrations"
     python -m app.cli migrate
     if [ -n "$BOTSHIELD_ADMIN_EMAIL" ] && [ -n "$BOTSHIELD_ADMIN_PASSWORD" ]; then
-      # Idempotent: create-admin refuses (non-fatal here) once any user exists.
-      python -m app.cli create-admin || true
+      # Idempotent: exit 3 means users already exist (fine); anything else is a real problem
+      # (e.g. password policy) and must be visible in the deploy log, but must not block serving.
+      set +e
+      python -m app.cli create-admin
+      rc=$?
+      set -e
+      case "$rc" in
+        0) echo "[entrypoint] initial administrator created; remove BOTSHIELD_ADMIN_* from the environment" ;;
+        3) echo "[entrypoint] users already exist; BOTSHIELD_ADMIN_* ignored" ;;
+        *) echo "[entrypoint] WARNING: create-admin failed (exit $rc) - fix BOTSHIELD_ADMIN_* or run 'python -m app.cli create-admin' in a shell" ;;
+      esac
+    else
+      echo "[entrypoint] BOTSHIELD_ADMIN_EMAIL/PASSWORD not set; create the first administrator with: python -m app.cli create-admin"
     fi
     WORKERS="${WEB_CONCURRENCY:-2}"
     PORT="${PORT:-8000}"

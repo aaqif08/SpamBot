@@ -103,7 +103,9 @@ async function rawRequest<T>(path: string, init: RequestInit = {}, withAuth = tr
     body = null;
   }
   if (!res.ok) {
-    const fallback = body === null && res.status >= 500 ? BACKEND_UNAVAILABLE : `Request failed (${res.status})`;
+    // A non-JSON error body means the request never reached the BotShield API
+    // (proxy target wrong, service asleep, gateway error) rather than an API-level rejection.
+    const fallback = body === null && (res.status >= 500 || res.status === 404) ? BACKEND_UNAVAILABLE : `Request failed (${res.status})`;
     const ra = res.headers.get("Retry-After");
     throw new ApiRequestError(res.status, body as Partial<ApiErrorBody> | null, fallback, ra ? Number(ra) : undefined);
   }

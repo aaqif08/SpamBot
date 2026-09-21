@@ -5,8 +5,11 @@
 #   1. Open the backend service → Shell:  python -m app.cli create-admin
 #      (or set BOTSHIELD_ADMIN_EMAIL / BOTSHIELD_ADMIN_PASSWORD / BOTSHIELD_ADMIN_ORG before the first boot;
 #       the entrypoint creates the admin once and never overwrites an existing user).
-#   2. If Render assigned the backend a different hostname (name already taken), update the
-#      rewrite destination below and BOTSHIELD_CORS_ORIGINS, then re-apply.
+#   2. IMPORTANT: Render hostnames are global. If "botshield-backend.onrender.com" was already
+#      taken by another account, your backend gets a suffixed hostname and the /api/* rewrite
+#      below would proxy (including login credentials) to a stranger's site. Copy the backend URL
+#      shown in the dashboard into the rewrite destination below, push, and let the Blueprint sync.
+#      Verify with: curl https://<frontend-host>/api/v1/health  ->  {"status":"ok","version":...}
 #
 # Free-tier limits that matter (see docs/deployment.md):
 #   - No persistent disk: with BOTSHIELD_STORAGE_BACKEND=local, uploaded datasets and trained model
