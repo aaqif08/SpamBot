@@ -40,7 +40,7 @@ services:
       - key: BOTSHIELD_ENVIRONMENT
         value: production
       - key: BOTSHIELD_DATABASE_URL
-        sync: false   # paste the Internal Database URL (postgres://...) of your Render Postgres
+        sync: false   # PostgreSQL URL. Neon: use the DIRECT string (host without '-pooler') because of BOTSHIELD_DB_SCHEMA
       - key: BOTSHIELD_DB_SCHEMA
         value: botshield   # own schema, so a database shared with another app cannot clash
       - key: BOTSHIELD_SECRET_KEY

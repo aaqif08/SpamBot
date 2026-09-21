@@ -139,6 +139,11 @@ class Settings(BaseSettings):
             raise ValueError("BOTSHIELD_COOKIE_SAMESITE=none requires BOTSHIELD_COOKIE_SECURE=true")
         if self.docs_enabled is None:
             self.docs_enabled = self.environment != "production"
+        if self.db_schema and "-pooler." in self.database_url:
+            raise ValueError(
+                "BOTSHIELD_DB_SCHEMA needs a session-level search_path, which transaction poolers do not keep; "
+                "use the direct (unpooled) connection string — remove '-pooler' from the host — or unset BOTSHIELD_DB_SCHEMA"
+            )
         if not self.secret_key:
             if self.environment in ("staging", "production"):
                 raise ValueError("BOTSHIELD_SECRET_KEY must be set in staging/production (use: python -c \"import secrets; print(secrets.token_urlsafe(48))\")")

@@ -45,7 +45,7 @@ All settings are read from environment variables prefixed `BOTSHIELD_` (see `bac
 |---|---|---|---|
 | `BOTSHIELD_ENVIRONMENT` | yes | `development` | `production` enables JSON logs, secure cookies, disables docs, forbids SQLite |
 | `BOTSHIELD_DATABASE_URL` | yes | SQLite (dev only) | `postgresql+psycopg://user:pass@host:5432/db`; `postgres://` URLs are normalised automatically |
-| `BOTSHIELD_DB_SCHEMA` | no | – | PostgreSQL schema to own all BotShield tables (created by `migrate`); set when the database is shared with another application |
+| `BOTSHIELD_DB_SCHEMA` | no | – | PostgreSQL schema to own all BotShield tables (created by `migrate`); set when the database is shared with another application. Requires a direct (unpooled) connection string — with Neon, drop `-pooler` from the host |
 | `BOTSHIELD_SECRET_KEY` | yes | — | JWT signing + refresh-token hashing. `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Rotating it logs every user out |
 | `BOTSHIELD_CORS_ORIGINS` | yes | — | Exact browser origins, comma-separated. Not needed when the SPA proxies `/api/` same-origin, but set it anyway |
 | `BOTSHIELD_COOKIE_SECURE` | yes | true in prod | Refresh cookie `Secure` flag; requires HTTPS |

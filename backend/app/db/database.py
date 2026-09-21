@@ -35,17 +35,24 @@ def build_engine(url: str | None = None) -> Engine:
             cursor.close()
 
         return eng
-    connect_args: dict = {}
-    if settings.db_schema and url.startswith("postgresql"):
-        # Every connection works inside the dedicated schema (tables, enums, alembic_version).
-        connect_args["options"] = f"-csearch_path={settings.db_schema}"
-    return create_engine(
+    eng = create_engine(
         url,
         pool_pre_ping=True,
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
-        connect_args=connect_args,
     )
+    if settings.db_schema and url.startswith("postgresql"):
+        schema = settings.db_schema
+
+        # SET as a plain statement rather than a libpq startup option: connection poolers
+        # such as Neon's pgbouncer reject "options=-csearch_path=..." at startup.
+        @event.listens_for(eng, "connect")
+        def _set_search_path(dbapi_connection, _record) -> None:  # pragma: no cover - driver hook
+            cursor = dbapi_connection.cursor()
+            cursor.execute(f'SET search_path TO "{schema}"')
+            cursor.close()
+
+    return eng
 
 
 def ensure_schema(eng: Engine | None = None) -> None:
@@ -53,8 +60,6 @@ def ensure_schema(eng: Engine | None = None) -> None:
     settings = get_settings()
     if not settings.db_schema or not settings.database_url.startswith("postgresql"):
         return
-    from sqlalchemy import text
-
     base = create_engine(settings.database_url, pool_pre_ping=True)
     with base.begin() as conn:
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{settings.db_schema}"'))
